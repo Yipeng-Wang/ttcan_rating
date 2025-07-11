@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // ====== CONFIGURATION ======
 const SHEET_ID = process.env.REACT_APP_GOOGLE_SHEET_ID;
@@ -114,6 +114,10 @@ function App() {
   const [activePlayerCount, setActivePlayerCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [playerName, setPlayerName] = useState('');
+  const [playerInfo, setPlayerInfo] = useState(null);
+  const [filteredNames, setFilteredNames] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Validate configuration
   useEffect(() => {
@@ -182,11 +186,33 @@ function App() {
       const filtered = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
       setActivePlayerCount(filtered.length);
       setHist(makeHistogram(filtered, 100));
+      
+      // Update player info if a player is selected
+      if (playerName) {
+        const player = filtered.find(p => p.name === playerName);
+        if (player) {
+          // Recalculate percentile with new filtered data
+          const ratings = filtered.map(p => p.rating).sort((a, b) => b - a); // Sort descending
+          const playerRating = player.rating;
+          const playerRank = ratings.findIndex(r => r <= playerRating) + 1;
+          const percentile = ((playerRank / ratings.length) * 100).toFixed(1);
+          
+          setPlayerInfo({
+            name: player.name,
+            rating: player.rating,
+            percentile: percentile,
+            lastPlayed: player.lastPlayed
+          });
+        } else {
+          // Player not found in current time period
+          setPlayerInfo(null);
+        }
+      }
     } catch (err) {
       console.error('Error filtering data:', err);
       setError('Error processing data');
     }
-  }, [months, data]);
+  }, [months, data, playerName]);
 
   const handleMonthsChange = (e) => {
     const value = e.target.value;
@@ -202,66 +228,529 @@ function App() {
     }
   };
 
+  const handleNameChange = (e) => {
+    const value = e.target.value;
+    setPlayerName(value);
+    
+    if (value.length > 0) {
+      // Filter names based on input
+      const filtered = data
+        .filter(player => 
+          player.name.toLowerCase().includes(value.toLowerCase())
+        )
+        .map(player => player.name)
+        .slice(0, 10); // Limit to 10 suggestions
+      
+      setFilteredNames(filtered);
+      setShowSuggestions(true);
+    } else {
+      setFilteredNames([]);
+      setShowSuggestions(false);
+      setPlayerInfo(null);
+    }
+  };
+
+  const handleNameSelect = (name) => {
+    setPlayerName(name);
+    setShowSuggestions(false);
+    
+    // Find player info
+    const monthsValue = months === '' || months === '0' ? 1000 : Number(months);
+    const filteredData = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
+    const player = filteredData.find(p => p.name === name);
+    
+    if (player) {
+      // Calculate percentile
+      const ratings = filteredData.map(p => p.rating).sort((a, b) => b - a); // Sort descending
+      const playerRating = player.rating;
+      const playerRank = ratings.findIndex(r => r <= playerRating) + 1;
+      const percentile = ((playerRank / ratings.length) * 100).toFixed(1);
+      
+      setPlayerInfo({
+        name: player.name,
+        rating: player.rating,
+        percentile: percentile,
+        lastPlayed: player.lastPlayed
+      });
+    }
+  };
+
+  const calculatePercentileLine = () => {
+    if (!playerInfo) return null;
+    
+    const playerRating = playerInfo.rating;
+    
+    // Find which bin the player falls into
+    const binSize = 100;
+    const binStart = Math.floor(playerRating / binSize) * binSize;
+    const binEnd = binStart + binSize - 1;
+    
+    return {
+      binRange: `${binStart}-${binEnd}`,
+      rating: playerRating,
+      percentile: playerInfo.percentile
+    };
+  };
+
   if (loading) {
     return (
-      <div style={{ padding: 32, fontFamily: "sans-serif", textAlign: "center" }}>
-        <h2>Loading TTCAN Rating Data...</h2>
-        <p>Please wait while we fetch the latest data.</p>
+      <div style={{ 
+        padding: 32, 
+        fontFamily: "'Comic Sans MS', cursive, sans-serif", 
+        textAlign: "center",
+        background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 50%, #FFC0CB 100%)",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center"
+      }}>
+        <div style={{
+          background: "white",
+          padding: "40px",
+          borderRadius: "25px",
+          boxShadow: "0 10px 30px rgba(255, 182, 193, 0.4)",
+          border: "3px solid #FF69B4"
+        }}>
+          <h2 style={{ 
+            color: "#FF1493", 
+            fontSize: "2.5em",
+            textShadow: "2px 2px 4px rgba(255, 20, 147, 0.3)",
+            marginBottom: "20px"
+          }}>
+            🏓✨ Loading TTCAN Data ✨🏓
+          </h2>
+          <div style={{
+            width: "60px",
+            height: "60px",
+            border: "6px solid #FFB6C1",
+            borderTop: "6px solid #FF1493",
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+            margin: "20px auto"
+          }} />
+          <p style={{ color: "#FF69B4", fontSize: "1.2em" }}>
+            Please wait while we fetch the latest data! {'(´∀`)'}
+          </p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div style={{ padding: 32, fontFamily: "sans-serif" }}>
-        <h2>Error Loading Data</h2>
-        <p style={{ color: 'red' }}>{error}</p>
-        <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: '8px 16px' }}>
-          Retry
-        </button>
+      <div style={{ 
+        padding: 32, 
+        fontFamily: "'Comic Sans MS', cursive, sans-serif",
+        background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 50%, #FFC0CB 100%)",
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center"
+      }}>
+        <div style={{
+          background: "white",
+          padding: "40px",
+          borderRadius: "25px",
+          boxShadow: "0 10px 30px rgba(255, 182, 193, 0.4)",
+          border: "3px solid #FF6B6B",
+          textAlign: "center"
+        }}>
+          <h2 style={{ 
+            color: "#FF6B6B", 
+            fontSize: "2.2em",
+            marginBottom: "20px"
+          }}>
+            {'(>_<)'} Oops! Something went wrong
+          </h2>
+          <p style={{ color: "#FF8E8E", fontSize: "1.1em", marginBottom: "30px" }}>
+            {error}
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            style={{ 
+              background: "linear-gradient(45deg, #FF69B4, #FF1493)",
+              color: "white",
+              border: "none",
+              padding: "15px 30px",
+              fontSize: "1.1em",
+              borderRadius: "25px",
+              cursor: "pointer",
+              boxShadow: "0 5px 15px rgba(255, 105, 180, 0.3)",
+              transition: "all 0.3s ease",
+              fontFamily: "'Comic Sans MS', cursive, sans-serif"
+            }}
+            onMouseOver={(e) => {
+              e.target.style.transform = "scale(1.05)";
+              e.target.style.boxShadow = "0 7px 20px rgba(255, 105, 180, 0.5)";
+            }}
+            onMouseOut={(e) => {
+              e.target.style.transform = "scale(1)";
+              e.target.style.boxShadow = "0 5px 15px rgba(255, 105, 180, 0.3)";
+            }}
+          >
+            🔄 Try Again! ✨
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 32, fontFamily: "sans-serif" }}>
-      <h2>TTCAN Woman Rating Distribution</h2>
-      
-      <div style={{ marginBottom: 20 }}>
-        <label>
-          Show players active in last&nbsp;
-          <input
-            type="number"
-            min={1}
-            max={60}
-            value={months}
-            onChange={handleMonthsChange}
-            style={{ width: 60, padding: 4 }}
-          />
-          &nbsp;month(s)
-        </label>
-      </div>
-      
-      <div style={{ margin: "20px 0", fontWeight: "bold" }}>
-        Total active players: {activePlayerCount}
-      </div>
-      
-      {hist.length > 0 ? (
-        <ResponsiveContainer width="100%" height={400}>
-          <BarChart data={hist} style={{ marginTop: 32 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="range" />
-            <YAxis allowDecimals={false} />
-            <Tooltip />
-            <Bar dataKey="count" fill="#8884d8" />
-          </BarChart>
-        </ResponsiveContainer>
-      ) : (
-        <div style={{ marginTop: 32, padding: 20, border: '1px solid #ccc', borderRadius: 4 }}>
-          <p>No data available for the selected time period.</p>
-          <p>Try increasing the number of months or check if data is available in the Google Sheet.</p>
+    <div style={{ 
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 30%, #FFC0CB 60%, #FFE4E1 100%)",
+      fontFamily: "'Comic Sans MS', cursive, sans-serif",
+      padding: "20px"
+    }}>
+      {/* Floating decoration elements */}
+      <div style={{
+        position: "fixed",
+        top: "10%",
+        left: "5%",
+        fontSize: "3em",
+        opacity: 0.3,
+        animation: "float 3s ease-in-out infinite",
+        zIndex: 1
+      }}>🏓</div>
+      <div style={{
+        position: "fixed",
+        top: "20%",
+        right: "10%",
+        fontSize: "2em",
+        opacity: 0.3,
+        animation: "float 4s ease-in-out infinite reverse",
+        zIndex: 1
+      }}>✨</div>
+      <div style={{
+        position: "fixed",
+        bottom: "15%",
+        left: "8%",
+        fontSize: "2.5em",
+        opacity: 0.3,
+        animation: "float 3.5s ease-in-out infinite",
+        zIndex: 1
+      }}>🌸</div>
+      <div style={{
+        position: "fixed",
+        bottom: "10%",
+        right: "5%",
+        fontSize: "2em",
+        opacity: 0.3,
+        animation: "float 4.5s ease-in-out infinite reverse",
+        zIndex: 1
+      }}>💫</div>
+
+      <div style={{ 
+        maxWidth: "1200px",
+        margin: "0 auto",
+        position: "relative",
+        zIndex: 2
+      }}>
+        <div style={{
+          background: "rgba(255, 255, 255, 0.95)",
+          borderRadius: "30px",
+          padding: "40px",
+          boxShadow: "0 20px 60px rgba(255, 182, 193, 0.3)",
+          border: "4px solid #FF69B4",
+          backdropFilter: "blur(10px)"
+        }}>
+          <h1 style={{ 
+            textAlign: "center",
+            color: "#FF1493",
+            fontSize: "3em",
+            textShadow: "3px 3px 6px rgba(255, 20, 147, 0.3)",
+            marginBottom: "10px",
+            letterSpacing: "2px"
+          }}>
+            🏓✨ TTCAN Rating Analytics ✨🏓
+          </h1>
+          
+          <p style={{
+            textAlign: "center",
+            color: "#FF69B4",
+            fontSize: "1.3em",
+            marginBottom: "40px",
+            fontStyle: "italic"
+          }}>
+            Discover the amazing world of table tennis ratings! {'(◕‿◕)'}
+          </p>
+
+          <div style={{
+            background: "linear-gradient(45deg, #FFE4E1, #FFB6C1)",
+            borderRadius: "20px",
+            padding: "25px",
+            marginBottom: "30px",
+            border: "3px solid #FF69B4",
+            boxShadow: "0 10px 25px rgba(255, 105, 180, 0.2)"
+          }}>
+            <label style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.3em",
+              color: "#FF1493",
+              fontWeight: "bold",
+              gap: "15px"
+            }}>
+              <span>🗓️ Show players active in last</span>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={months}
+                onChange={handleMonthsChange}
+                style={{ 
+                  width: "80px",
+                  padding: "12px",
+                  fontSize: "1.2em",
+                  borderRadius: "15px",
+                  border: "3px solid #FF69B4",
+                  textAlign: "center",
+                  fontFamily: "'Comic Sans MS', cursive, sans-serif",
+                  fontWeight: "bold",
+                  color: "#FF1493",
+                  background: "white",
+                  boxShadow: "0 5px 15px rgba(255, 105, 180, 0.2)"
+                }}
+              />
+              <span>month(s) 📊</span>
+            </label>
+          </div>
+          
+          {/* Player Name Input */}
+          <div style={{
+            background: "linear-gradient(45deg, #FFE4E1, #FFB6C1)",
+            borderRadius: "20px",
+            padding: "25px",
+            marginBottom: "30px",
+            border: "3px solid #FF69B4",
+            boxShadow: "0 10px 25px rgba(255, 105, 180, 0.2)",
+            position: "relative"
+          }}>
+            <label style={{
+              display: "block",
+              fontSize: "1.3em",
+              color: "#FF1493",
+              fontWeight: "bold",
+              marginBottom: "15px",
+              textAlign: "center"
+            }}>
+              🏓 Find Your Rating Percentile! ✨
+            </label>
+            
+            <div style={{ position: "relative", maxWidth: "400px", margin: "0 auto" }}>
+              <input
+                type="text"
+                value={playerName}
+                onChange={handleNameChange}
+                placeholder="Enter your name..."
+                style={{
+                  width: "100%",
+                  padding: "15px",
+                  fontSize: "1.1em",
+                  borderRadius: "15px",
+                  border: "3px solid #FF69B4",
+                  fontFamily: "'Comic Sans MS', cursive, sans-serif",
+                  color: "#FF1493",
+                  background: "white",
+                  boxShadow: "0 5px 15px rgba(255, 105, 180, 0.2)",
+                  textAlign: "center"
+                }}
+                onFocus={() => {
+                  if (filteredNames.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
+                onBlur={() => {
+                  // Delay hiding suggestions to allow clicking
+                  setTimeout(() => setShowSuggestions(false), 200);
+                }}
+              />
+              
+              {/* Autocomplete Suggestions */}
+              {showSuggestions && filteredNames.length > 0 && (
+                <div style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: "0",
+                  right: "0",
+                  background: "white",
+                  border: "3px solid #FF69B4",
+                  borderTop: "none",
+                  borderRadius: "0 0 15px 15px",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  zIndex: 1000,
+                  boxShadow: "0 5px 15px rgba(255, 105, 180, 0.3)"
+                }}>
+                  {filteredNames.map((name, index) => (
+                    <div
+                      key={index}
+                      style={{
+                        padding: "10px 15px",
+                        cursor: "pointer",
+                        borderBottom: index < filteredNames.length - 1 ? "1px solid #FFE4E1" : "none",
+                        color: "#FF1493",
+                        fontFamily: "'Comic Sans MS', cursive, sans-serif"
+                      }}
+                      onMouseDown={() => handleNameSelect(name)}
+                      onMouseOver={(e) => {
+                        e.target.style.backgroundColor = "#FFE4E1";
+                      }}
+                      onMouseOut={(e) => {
+                        e.target.style.backgroundColor = "white";
+                      }}
+                    >
+                      {name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Player Info Display */}
+          {playerInfo && (
+            <div style={{
+              background: "linear-gradient(45deg, #32CD32, #228B22)",
+              borderRadius: "20px",
+              padding: "25px",
+              margin: "30px 0",
+              textAlign: "center",
+              color: "white",
+              fontSize: "1.2em",
+              fontWeight: "bold",
+              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
+              boxShadow: "0 10px 30px rgba(50, 205, 50, 0.4)",
+              border: "3px solid #228B22"
+            }}>
+              <div style={{ fontSize: "1.5em", marginBottom: "15px" }}>
+                🏆 {playerInfo.name} 🏆
+              </div>
+              <div style={{ fontSize: "1.3em", marginBottom: "10px" }}>
+                Rating: {playerInfo.rating}
+              </div>
+              <div style={{ fontSize: "1.4em", marginBottom: "10px" }}>
+                🎯 You're in the top {playerInfo.percentile}% of players! 🎯
+              </div>
+              <div style={{ fontSize: "1em", opacity: 0.9 }}>
+                Last played: {playerInfo.lastPlayed}
+              </div>
+            </div>
+          )}
+          
+          <div style={{
+            background: "linear-gradient(45deg, #FF69B4, #FF1493)",
+            borderRadius: "20px",
+            padding: "20px",
+            margin: "30px 0",
+            textAlign: "center",
+            color: "white",
+            fontSize: "1.5em",
+            fontWeight: "bold",
+            textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
+            boxShadow: "0 10px 30px rgba(255, 105, 180, 0.4)"
+          }}>
+            🌟 Total active players: {activePlayerCount} 🌟
+          </div>
+          
+          {hist.length > 0 ? (
+            <div style={{
+              background: "white",
+              borderRadius: "25px",
+              padding: "30px",
+              border: "4px solid #FF69B4",
+              boxShadow: "0 15px 35px rgba(255, 105, 180, 0.3)"
+            }}>
+              <h3 style={{
+                textAlign: "center",
+                color: "#FF1493",
+                fontSize: "2em",
+                marginBottom: "30px",
+                textShadow: "2px 2px 4px rgba(255, 20, 147, 0.3)"
+              }}>
+                📊 Rating Distribution Magic ✨
+              </h3>
+              <ResponsiveContainer width="100%" height={450}>
+                <BarChart data={hist}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#FFB6C1" />
+                  <XAxis 
+                    dataKey="range" 
+                    tick={{ fill: '#FF1493', fontSize: 12, fontFamily: "'Comic Sans MS', cursive" }}
+                    axisLine={{ stroke: '#FF69B4', strokeWidth: 2 }}
+                  />
+                  <YAxis 
+                    allowDecimals={false} 
+                    tick={{ fill: '#FF1493', fontSize: 12, fontFamily: "'Comic Sans MS', cursive" }}
+                    axisLine={{ stroke: '#FF69B4', strokeWidth: 2 }}
+                  />
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: '#FFE4E1',
+                      border: '3px solid #FF69B4',
+                      borderRadius: '15px',
+                      fontFamily: "'Comic Sans MS', cursive",
+                      color: '#FF1493',
+                      fontSize: '1.1em'
+                    }}
+                  />
+                  <Bar 
+                    dataKey="count" 
+                    fill="url(#colorGradient)"
+                    radius={[8, 8, 0, 0]}
+                  />
+                  {/* Player Rating Reference Line */}
+                  {playerInfo && calculatePercentileLine() && (
+                    <ReferenceLine 
+                      x={calculatePercentileLine().binRange}
+                      stroke="#32CD32"
+                      strokeWidth={4}
+                      strokeDasharray="5 5"
+                      label={{ 
+                        value: `🏆 ${playerInfo.name} (${playerInfo.rating})`, 
+                        position: "top",
+                        style: { 
+                          fill: '#32CD32', 
+                          fontWeight: 'bold',
+                          fontSize: '14px',
+                          fontFamily: "'Comic Sans MS', cursive"
+                        }
+                      }}
+                    />
+                  )}
+                  <defs>
+                    <linearGradient id="colorGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FF1493" />
+                      <stop offset="50%" stopColor="#FF69B4" />
+                      <stop offset="100%" stopColor="#FFB6C1" />
+                    </linearGradient>
+                  </defs>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div style={{
+              background: "linear-gradient(45deg, #FFE4E1, #FFB6C1)",
+              borderRadius: "25px",
+              padding: "40px",
+              border: "3px solid #FF69B4",
+              textAlign: "center",
+              boxShadow: "0 10px 30px rgba(255, 182, 193, 0.3)"
+            }}>
+              <div style={{ fontSize: "4em", marginBottom: "20px" }}>😅</div>
+              <h3 style={{ color: "#FF1493", fontSize: "1.8em", marginBottom: "15px" }}>
+                Oops! No data found for this time period!
+              </h3>
+              <p style={{ color: "#FF69B4", fontSize: "1.2em", lineHeight: "1.6" }}>
+                Try increasing the number of months or check if data is available in the Google Sheet! ✨
+              </p>
+              <div style={{ fontSize: "2em", marginTop: "20px" }}>🔍📊</div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
