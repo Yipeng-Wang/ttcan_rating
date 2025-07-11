@@ -323,7 +323,7 @@ function App() {
     return (
       <div style={{ 
         padding: 32, 
-        fontFamily: "'Comic Sans MS', cursive, sans-serif", 
+        fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif", 
         textAlign: "center",
         background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 50%, #FFC0CB 100%)",
         minHeight: "100vh",
@@ -368,7 +368,7 @@ function App() {
     return (
       <div style={{ 
         padding: 32, 
-        fontFamily: "'Comic Sans MS', cursive, sans-serif",
+        fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
         background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 50%, #FFC0CB 100%)",
         minHeight: "100vh",
         display: "flex",
@@ -406,7 +406,7 @@ function App() {
               cursor: "pointer",
               boxShadow: "0 5px 15px rgba(255, 105, 180, 0.3)",
               transition: "all 0.3s ease",
-              fontFamily: "'Comic Sans MS', cursive, sans-serif"
+              fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif"
             }}
             onMouseOver={(e) => {
               e.target.style.transform = "scale(1.05)";
@@ -428,11 +428,11 @@ function App() {
     <div style={{ 
       minHeight: "100vh",
       background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 30%, #FFC0CB 60%, #FFE4E1 100%)",
-      fontFamily: "'Comic Sans MS', cursive, sans-serif",
+      fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
       padding: "20px"
     }}>
       {/* Floating decoration elements */}
-      <div style={{
+      <div className="floating-decoration" style={{
         position: "fixed",
         top: "10%",
         left: "5%",
@@ -441,7 +441,7 @@ function App() {
         animation: "float 3s ease-in-out infinite",
         zIndex: 1
       }}>🏓</div>
-      <div style={{
+      <div className="floating-decoration" style={{
         position: "fixed",
         top: "20%",
         right: "10%",
@@ -450,7 +450,7 @@ function App() {
         animation: "float 4s ease-in-out infinite reverse",
         zIndex: 1
       }}>✨</div>
-      <div style={{
+      <div className="floating-decoration" style={{
         position: "fixed",
         bottom: "15%",
         left: "8%",
@@ -459,7 +459,7 @@ function App() {
         animation: "float 3.5s ease-in-out infinite",
         zIndex: 1
       }}>🌸</div>
-      <div style={{
+      <div className="floating-decoration" style={{
         position: "fixed",
         bottom: "10%",
         right: "5%",
@@ -469,13 +469,14 @@ function App() {
         zIndex: 1
       }}>💫</div>
 
-      <div style={{ 
+      <div className="main-container" style={{ 
         maxWidth: "1200px",
         margin: "0 auto",
         position: "relative",
-        zIndex: 2
+        zIndex: 2,
+        padding: "20px"
       }}>
-        <div style={{
+        <div className="content-card" style={{
           background: "rgba(255, 255, 255, 0.95)",
           borderRadius: "30px",
           padding: "40px",
@@ -483,7 +484,7 @@ function App() {
           border: "4px solid #FF69B4",
           backdropFilter: "blur(10px)"
         }}>
-          <h1 style={{ 
+          <h1 className="title-text" style={{ 
             textAlign: "center",
             color: "#FF1493",
             fontSize: "3em",
@@ -494,7 +495,7 @@ function App() {
             🏓✨ TTCAN Rating Analytics ✨🏓
           </h1>
           
-          <p style={{
+          <p className="subtitle-text" style={{
             textAlign: "center",
             color: "#FF69B4",
             fontSize: "1.3em",
@@ -504,7 +505,7 @@ function App() {
             Discover the amazing world of table tennis ratings! {'(◕‿◕)'}
           </p>
 
-          <div style={{
+          <div className="input-section" style={{
             background: "linear-gradient(45deg, #FFE4E1, #FFB6C1)",
             borderRadius: "20px",
             padding: "25px",
@@ -512,7 +513,7 @@ function App() {
             border: "3px solid #FF69B4",
             boxShadow: "0 10px 25px rgba(255, 105, 180, 0.2)"
           }}>
-            <label style={{
+            <label className="input-label" style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -528,6 +529,7 @@ function App() {
                 max={60}
                 value={months}
                 onChange={handleMonthsChange}
+                className="number-input"
                 style={{ 
                   width: "80px",
                   padding: "12px",
@@ -535,7 +537,7 @@ function App() {
                   borderRadius: "15px",
                   border: "3px solid #FF69B4",
                   textAlign: "center",
-                  fontFamily: "'Comic Sans MS', cursive, sans-serif",
+                  fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                   fontWeight: "bold",
                   color: "#FF1493",
                   background: "white",
@@ -547,7 +549,7 @@ function App() {
           </div>
           
           {/* Player Name Input */}
-          <div style={{
+          <div className="input-section" style={{
             background: "linear-gradient(45deg, #FFE4E1, #FFB6C1)",
             borderRadius: "20px",
             padding: "25px",
@@ -573,13 +575,14 @@ function App() {
                 value={playerName}
                 onChange={handleNameChange}
                 placeholder="Enter your name..."
+                className="name-input"
                 style={{
                   width: "100%",
                   padding: "15px",
                   fontSize: "1.1em",
                   borderRadius: "15px",
                   border: "3px solid #FF69B4",
-                  fontFamily: "'Comic Sans MS', cursive, sans-serif",
+                  fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                   color: "#FF1493",
                   background: "white",
                   boxShadow: "0 5px 15px rgba(255, 105, 180, 0.2)",
@@ -598,7 +601,7 @@ function App() {
               
               {/* Autocomplete Suggestions */}
               {showSuggestions && filteredNames.length > 0 && (
-                <div style={{
+                <div className="autocomplete-suggestions" style={{
                   position: "absolute",
                   top: "100%",
                   left: "0",
@@ -620,7 +623,7 @@ function App() {
                         cursor: "pointer",
                         borderBottom: index < filteredNames.length - 1 ? "1px solid #FFE4E1" : "none",
                         color: "#FF1493",
-                        fontFamily: "'Comic Sans MS', cursive, sans-serif"
+                        fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif"
                       }}
                       onMouseDown={() => handleNameSelect(name)}
                       onMouseOver={(e) => {
@@ -640,7 +643,7 @@ function App() {
 
           {/* Player Info Display */}
           {playerInfo && playerInfo.isActive && (
-            <div style={{
+            <div className="player-info-card" style={{
               background: "linear-gradient(45deg, #32CD32, #228B22)",
               borderRadius: "20px",
               padding: "25px",
@@ -653,13 +656,13 @@ function App() {
               boxShadow: "0 10px 30px rgba(50, 205, 50, 0.4)",
               border: "3px solid #228B22"
             }}>
-              <div style={{ fontSize: "1.5em", marginBottom: "15px" }}>
+              <div className="player-name-title" style={{ fontSize: "1.5em", marginBottom: "15px" }}>
                 🏆 {playerInfo.name} 🏆
               </div>
-              <div style={{ fontSize: "1.3em", marginBottom: "10px" }}>
+              <div className="player-rating" style={{ fontSize: "1.3em", marginBottom: "10px" }}>
                 Rating: {playerInfo.rating}
               </div>
-              <div style={{ fontSize: "1.4em", marginBottom: "10px" }}>
+              <div className="percentile-text" style={{ fontSize: "1.4em", marginBottom: "10px" }}>
                 🎯 You're in the top {playerInfo.percentile}% of players! 🎯
               </div>
               <div style={{ fontSize: "1em", opacity: 0.9 }}>
@@ -670,7 +673,7 @@ function App() {
 
           {/* Inactive Player Warning */}
           {playerInfo && !playerInfo.isActive && (
-            <div style={{
+            <div className="player-info-card" style={{
               background: "linear-gradient(45deg, #FFB347, #FF8C00)",
               borderRadius: "20px",
               padding: "25px",
@@ -686,13 +689,13 @@ function App() {
               <div style={{ fontSize: "3em", marginBottom: "15px" }}>
                 😴
               </div>
-              <div style={{ fontSize: "1.5em", marginBottom: "15px" }}>
+              <div className="player-name-title" style={{ fontSize: "1.5em", marginBottom: "15px" }}>
                 {playerInfo.name}
               </div>
-              <div style={{ fontSize: "1.3em", marginBottom: "15px" }}>
+              <div className="player-rating" style={{ fontSize: "1.3em", marginBottom: "15px" }}>
                 Rating: {playerInfo.rating}
               </div>
-              <div style={{ fontSize: "1.2em", marginBottom: "15px", lineHeight: "1.4" }}>
+              <div className="inactive-warning" style={{ fontSize: "1.2em", marginBottom: "15px", lineHeight: "1.4" }}>
                 {'(˘▾˘~)'} Oops! This player hasn't been active in the last{' '}
                 {months === '' || months === '0' ? 'many' : months} month{months !== '1' ? 's' : ''}
               </div>
@@ -705,7 +708,7 @@ function App() {
             </div>
           )}
           
-          <div style={{
+          <div className="total-players" style={{
             background: "linear-gradient(45deg, #FF69B4, #FF1493)",
             borderRadius: "20px",
             padding: "20px",
@@ -721,14 +724,14 @@ function App() {
           </div>
           
           {hist.length > 0 ? (
-            <div style={{
+            <div className="chart-container" style={{
               background: "white",
               borderRadius: "25px",
               padding: "30px",
               border: "4px solid #FF69B4",
               boxShadow: "0 15px 35px rgba(255, 105, 180, 0.3)"
             }}>
-              <h3 style={{
+              <h3 className="chart-title" style={{
                 textAlign: "center",
                 color: "#FF1493",
                 fontSize: "2em",
@@ -755,7 +758,7 @@ function App() {
                       backgroundColor: '#FFE4E1',
                       border: '3px solid #FF69B4',
                       borderRadius: '15px',
-                      fontFamily: "'Comic Sans MS', cursive",
+                      fontFamily: "'Fredoka', 'Bubblegum Sans', cursive",
                       color: '#FF1493',
                       fontSize: '1.1em'
                     }}
@@ -779,7 +782,7 @@ function App() {
                           fill: '#32CD32', 
                           fontWeight: 'bold',
                           fontSize: '14px',
-                          fontFamily: "'Comic Sans MS', cursive"
+                          fontFamily: "'Fredoka', 'Bubblegum Sans', cursive"
                         }
                       }}
                     />
