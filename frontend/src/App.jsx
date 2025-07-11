@@ -177,7 +177,9 @@ function App() {
   // Re-filter and update histogram/count when data or months changes
   useEffect(() => {
     try {
-      const filtered = data.filter(x => isWithinLastNMonths(x.lastPlayed, months));
+      // If months is empty or 0, show all data
+      const monthsValue = months === '' || months === '0' ? 1000 : Number(months);
+      const filtered = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
       setActivePlayerCount(filtered.length);
       setHist(makeHistogram(filtered, 100));
     } catch (err) {
@@ -187,9 +189,16 @@ function App() {
   }, [months, data]);
 
   const handleMonthsChange = (e) => {
-    const value = Number(e.target.value);
-    if (value >= 1 && value <= 60) {
+    const value = e.target.value;
+    
+    // Allow empty input or valid numbers
+    if (value === '' || value === '0') {
       setMonths(value);
+    } else {
+      const numValue = Number(value);
+      if (!isNaN(numValue) && numValue >= 1 && numValue <= 60) {
+        setMonths(numValue);
+      }
     }
   };
 
