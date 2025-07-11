@@ -28,7 +28,6 @@ try:
     TTCAN_BASE_URL = os.getenv("TTCAN_BASE_URL", "http://www.ttcan.ca/ratingSystem/ctta_ratings2.asp")
     CATEGORY_CODE = os.getenv("CATEGORY_CODE", "1")
     PERIOD_ISSUED = os.getenv("PERIOD_ISSUED", "412")
-    SEX = os.getenv("SEX", "F")
     SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
     SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Sheet1")
     CREDS_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "ttcan-rating-analysis-2ef44605707a.json")
@@ -36,7 +35,7 @@ try:
     if not SHEET_ID:
         raise ValueError("GOOGLE_SHEET_ID environment variable is required")
         
-    logger.info(f"Configuration loaded - Period: {PERIOD_ISSUED}, Sex: {SEX}")
+    logger.info(f"Configuration loaded - Period: {PERIOD_ISSUED}, scraping both genders")
     
 except Exception as e:
     logger.error(f"Configuration error: {e}")
@@ -74,18 +73,20 @@ def validate_player_data(player: Dict[str, str]) -> bool:
     return True
 
 # ==== SCRAPE TTCAN RATINGS ACROSS ALL PAGES ====
-def scrape_all_ttcan_players() -> List[Dict[str, str]]:
-    """Scrape all TTCAN player ratings across multiple pages."""
+def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
+    """Scrape TTCAN player ratings for a specific gender across multiple pages."""
     all_players = []
     page = 1
     max_retries = 3
     
+    logger.info(f"Scraping {gender} players...")
+    
     while True:
-        logger.info(f"Fetching page {page}...")
+        logger.info(f"Fetching {gender} page {page}...")
         params = {
             "Category_code": CATEGORY_CODE,
             "Period_Issued": PERIOD_ISSUED,
-            "Sex": SEX,
+            "Sex": gender,
             "Formv_ctta_ratings_Page": page,
         }
         
@@ -151,7 +152,23 @@ def scrape_all_ttcan_players() -> List[Dict[str, str]]:
             logger.error(f"Error parsing page {page}: {e}")
             break
 
-    logger.info(f"Total players found: {len(all_players)}")
+    logger.info(f"Total {gender} players found: {len(all_players)}")
+    return all_players
+
+def scrape_all_ttcan_players() -> List[Dict[str, str]]:
+    """Scrape all TTCAN player ratings for both genders."""
+    all_players = []
+    
+    # Scrape both female and male players
+    for gender in ['F', 'M']:
+        gender_players = scrape_ttcan_players_by_gender(gender)
+        all_players.extend(gender_players)
+        
+        # Add delay between gender requests to be polite
+        if gender == 'F':
+            time.sleep(2)
+    
+    logger.info(f"Total players found across all genders: {len(all_players)}")
     return all_players
 
 # ==== WRITE TO GOOGLE SHEET ====
@@ -162,8 +179,8 @@ def write_to_sheet(players: List[Dict[str, str]]) -> bool:
         return False
     
     try:
-        # Clear existing data except header
-        sheet.resize(1)
+        # Clear all existing data first
+        sheet.clear()
         
         # Add header row
         header = ["Name", "Province", "Gender", "Rating", "Period", "Last Played"]
@@ -186,6 +203,14 @@ def write_to_sheet(players: List[Dict[str, str]]) -> bool:
             sheet.append_rows(batch, value_input_option="RAW")
             logger.info(f"Uploaded batch {i//batch_size + 1}: {len(batch)} rows")
             time.sleep(1)  # Rate limiting
+        
+        # Log gender distribution
+        gender_counts = {}
+        for player in players:
+            gender = player.get('Gender', 'Unknown')
+            gender_counts[gender] = gender_counts.get(gender, 0) + 1
+        
+        logger.info(f"Gender distribution: {gender_counts}")
         
         logger.info(f"Successfully uploaded {len(rows)} rows to Google Sheet")
         return True
