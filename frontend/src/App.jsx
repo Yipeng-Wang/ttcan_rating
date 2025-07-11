@@ -15,7 +15,9 @@ function validatePlayerData(player) {
     player.name.trim() !== '' &&
     !isNaN(player.rating) &&
     player.rating > 0 &&
-    player.lastPlayed
+    player.lastPlayed &&
+    player.gender &&
+    (player.gender === 'F' || player.gender === 'M')
   );
 }
 
@@ -118,6 +120,8 @@ function App() {
   const [playerInfo, setPlayerInfo] = useState(null);
   const [filteredNames, setFilteredNames] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedGender, setSelectedGender] = useState('all');
+  const [genderCounts, setGenderCounts] = useState({ F: 0, M: 0 });
 
   // Validate configuration
   useEffect(() => {
@@ -156,7 +160,10 @@ function App() {
             
             const player = {
               name: cols[0] || '',
+              province: cols[1] || '',
+              gender: cols[2] || '',
               rating: parseInt(cols[3], 10),
+              period: cols[4] || '',
               lastPlayed: cols[5] || '',
             };
             
@@ -165,7 +172,15 @@ function App() {
           .filter(player => player !== null);
         
         setData(parsed);
-        console.log(`Loaded ${parsed.length} valid players`);
+        
+        // Calculate gender distribution
+        const genderCount = parsed.reduce((acc, player) => {
+          acc[player.gender] = (acc[player.gender] || 0) + 1;
+          return acc;
+        }, {});
+        setGenderCounts(genderCount);
+        
+        console.log(`Loaded ${parsed.length} valid players (${genderCount.F || 0} Female, ${genderCount.M || 0} Male)`);
         
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -178,12 +193,17 @@ function App() {
     fetchData();
   }, [SHEET_URL]);
 
-  // Re-filter and update histogram/count when data or months changes
+  // Re-filter and update histogram/count when data, months, or gender changes
   useEffect(() => {
     try {
       // If months is empty or 0, show all data
       const monthsValue = months === '' || months === '0' ? 1000 : Number(months);
-      const filtered = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
+      let filtered = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
+      
+      // Apply gender filter
+      if (selectedGender !== 'all') {
+        filtered = filtered.filter(x => x.gender === selectedGender);
+      }
       setActivePlayerCount(filtered.length);
       setHist(makeHistogram(filtered, 100));
       
@@ -200,6 +220,7 @@ function App() {
           setPlayerInfo({
             name: player.name,
             rating: player.rating,
+            gender: player.gender,
             percentile: percentile,
             lastPlayed: player.lastPlayed,
             isActive: true
@@ -211,6 +232,7 @@ function App() {
             setPlayerInfo({
               name: playerInFullData.name,
               rating: playerInFullData.rating,
+              gender: playerInFullData.gender,
               percentile: null,
               lastPlayed: playerInFullData.lastPlayed,
               isActive: false
@@ -224,7 +246,7 @@ function App() {
       console.error('Error filtering data:', err);
       setError('Error processing data');
     }
-  }, [months, data, playerName]);
+  }, [months, data, playerName, selectedGender]);
 
   const handleMonthsChange = (e) => {
     const value = e.target.value;
@@ -245,11 +267,17 @@ function App() {
     setPlayerName(value);
     
     if (value.length > 0) {
-      // Filter names based on input
-      const filtered = data
-        .filter(player => 
-          player.name.toLowerCase().includes(value.toLowerCase())
-        )
+      // Filter names based on input and gender
+      let filteredData = data.filter(player => 
+        player.name.toLowerCase().includes(value.toLowerCase())
+      );
+      
+      // Apply gender filter
+      if (selectedGender !== 'all') {
+        filteredData = filteredData.filter(player => player.gender === selectedGender);
+      }
+      
+      const filtered = filteredData
         .map(player => player.name)
         .slice(0, 10); // Limit to 10 suggestions
       
@@ -268,7 +296,13 @@ function App() {
     
     // Find player info
     const monthsValue = months === '' || months === '0' ? 1000 : Number(months);
-    const filteredData = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
+    let filteredData = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
+    
+    // Apply gender filter
+    if (selectedGender !== 'all') {
+      filteredData = filteredData.filter(x => x.gender === selectedGender);
+    }
+    
     const player = filteredData.find(p => p.name === name);
     
     if (player) {
@@ -281,6 +315,7 @@ function App() {
       setPlayerInfo({
         name: player.name,
         rating: player.rating,
+        gender: player.gender,
         percentile: percentile,
         lastPlayed: player.lastPlayed,
         isActive: true
@@ -292,6 +327,7 @@ function App() {
         setPlayerInfo({
           name: playerInFullData.name,
           rating: playerInFullData.rating,
+          gender: playerInFullData.gender,
           percentile: null,
           lastPlayed: playerInFullData.lastPlayed,
           isActive: false
@@ -513,39 +549,78 @@ function App() {
             border: "3px solid #FF69B4",
             boxShadow: "0 10px 25px rgba(255, 105, 180, 0.2)"
           }}>
-            <label className="input-label" style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.3em",
-              color: "#FF1493",
-              fontWeight: "bold",
-              gap: "15px"
+            <div style={{ 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: "20px",
+              alignItems: "center"
             }}>
-              <span>🗓️ Show players active in last</span>
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={months}
-                onChange={handleMonthsChange}
-                className="number-input"
-                style={{ 
-                  width: "80px",
-                  padding: "12px",
-                  fontSize: "1.2em",
-                  borderRadius: "15px",
-                  border: "3px solid #FF69B4",
-                  textAlign: "center",
-                  fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
-                  fontWeight: "bold",
-                  color: "#FF1493",
-                  background: "white",
-                  boxShadow: "0 5px 15px rgba(255, 105, 180, 0.2)"
-                }}
-              />
-              <span>month(s) 📊</span>
-            </label>
+              <label className="input-label" style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.3em",
+                color: "#FF1493",
+                fontWeight: "bold",
+                gap: "15px"
+              }}>
+                <span>🗓️ Show players active in last</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={months}
+                  onChange={handleMonthsChange}
+                  className="number-input"
+                  style={{ 
+                    width: "80px",
+                    padding: "12px",
+                    fontSize: "1.2em",
+                    borderRadius: "15px",
+                    border: "3px solid #FF69B4",
+                    textAlign: "center",
+                    fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                    fontWeight: "bold",
+                    color: "#FF1493",
+                    background: "white",
+                    boxShadow: "0 5px 15px rgba(255, 105, 180, 0.2)"
+                  }}
+                />
+                <span>month(s) 📊</span>
+              </label>
+              
+              <label className="gender-label" style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.3em",
+                color: "#FF1493",
+                fontWeight: "bold",
+                gap: "15px"
+              }}>
+                <span>👫 Gender Filter:</span>
+                <select
+                  value={selectedGender}
+                  onChange={(e) => setSelectedGender(e.target.value)}
+                  style={{
+                    padding: "12px",
+                    fontSize: "1.1em",
+                    borderRadius: "15px",
+                    border: "3px solid #FF69B4",
+                    fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                    fontWeight: "bold",
+                    color: "#FF1493",
+                    background: "white",
+                    boxShadow: "0 5px 15px rgba(255, 105, 180, 0.2)",
+                    cursor: "pointer"
+                  }}
+                >
+                  <option value="all">All ({genderCounts.F + genderCounts.M})</option>
+                  <option value="F">Girls ({genderCounts.F})</option>
+                  <option value="M">Boys ({genderCounts.M})</option>
+                </select>
+              </label>
+            </div>
           </div>
           
           {/* Player Name Input */}
@@ -660,7 +735,7 @@ function App() {
                 🏆 {playerInfo.name} 🏆
               </div>
               <div className="player-rating" style={{ fontSize: "1.3em", marginBottom: "10px" }}>
-                Rating: {playerInfo.rating}
+                Rating: {playerInfo.rating} | {playerInfo.gender === 'F' ? '👧 Girl' : '👦 Boy'}
               </div>
               <div className="percentile-text" style={{ fontSize: "1.4em", marginBottom: "10px" }}>
                 🎯 You're in the top {playerInfo.percentile}% of players! 🎯
@@ -693,7 +768,7 @@ function App() {
                 {playerInfo.name}
               </div>
               <div className="player-rating" style={{ fontSize: "1.3em", marginBottom: "15px" }}>
-                Rating: {playerInfo.rating}
+                Rating: {playerInfo.rating} | {playerInfo.gender === 'F' ? '👧 Girl' : '👦 Boy'}
               </div>
               <div className="inactive-warning" style={{ fontSize: "1.2em", marginBottom: "15px", lineHeight: "1.4" }}>
                 {'(˘▾˘~)'} Oops! This player hasn't been active in the last{' '}
@@ -721,6 +796,10 @@ function App() {
             boxShadow: "0 10px 30px rgba(255, 105, 180, 0.4)"
           }}>
             🌟 Total active players: {activePlayerCount} 🌟
+            <div style={{ fontSize: "0.8em", marginTop: "10px", opacity: "0.9" }}>
+              {selectedGender === 'all' ? 'All genders' : 
+               selectedGender === 'F' ? 'Girls only' : 'Boys only'}
+            </div>
           </div>
           
           {hist.length > 0 ? (
