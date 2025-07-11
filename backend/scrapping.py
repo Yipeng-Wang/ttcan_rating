@@ -6,8 +6,12 @@ import time
 import logging
 import sys
 import os
+import re
+from datetime import datetime
 from dotenv import load_dotenv
 from typing import List, Dict, Optional
+import concurrent.futures
+from threading import Lock
 
 # Load environment variables
 load_dotenv()
@@ -72,6 +76,114 @@ def validate_player_data(player: Dict[str, str]) -> bool:
     
     return True
 
+def fetch_player_age(player_link: str) -> Optional[str]:
+    """Fetch player age from their detail page."""
+    if not player_link:
+        return None
+        
+    try:
+        # Construct full URL if it's a relative link
+        if player_link.startswith('/'):
+            full_url = f"http://www.ttcan.ca{player_link}"
+        elif player_link.startswith('http'):
+            full_url = player_link
+        else:
+            # Handle relative URLs without leading slash
+            full_url = f"http://www.ttcan.ca/ratingSystem/{player_link}"
+        
+        response = requests.get(full_url, timeout=10)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, "html.parser")
+        
+        # Look for age information in the player detail page
+        # This might be in various formats, so we'll try multiple patterns
+        
+        # Method 1: Look for "Age:" or "DOB:" labels
+        age_patterns = [
+            r"Age:\s*(\d+)",
+            r"DOB:\s*(\d{4}-\d{2}-\d{2})",
+            r"Date of Birth:\s*(\d{4}-\d{2}-\d{2})",
+            r"Born:\s*(\d{4})",
+            r"Year of Birth:\s*(\d{4})",
+        ]
+        
+        page_text = soup.get_text()
+        for pattern in age_patterns:
+            match = re.search(pattern, page_text, re.IGNORECASE)
+            if match:
+                age_info = match.group(1)
+                
+                # If it's a birth year, calculate age
+                if len(age_info) == 4 and age_info.isdigit():
+                    birth_year = int(age_info)
+                    current_year = datetime.now().year
+                    age = current_year - birth_year
+                    return str(age)
+                
+                # If it's a date, calculate age
+                if '-' in age_info and len(age_info) == 10:
+                    birth_date = datetime.strptime(age_info, '%Y-%m-%d')
+                    current_date = datetime.now()
+                    age = current_date.year - birth_date.year
+                    if current_date.month < birth_date.month or (current_date.month == birth_date.month and current_date.day < birth_date.day):
+                        age -= 1
+                    return str(age)
+                
+                # If it's already an age
+                if age_info.isdigit():
+                    return age_info
+        
+        # Method 2: Look in specific table structures
+        tables = soup.find_all("table")
+        for table in tables:
+            rows = table.find_all("tr")
+            for row in rows:
+                cells = row.find_all(["td", "th"])
+                for i, cell in enumerate(cells):
+                    cell_text = cell.get_text(strip=True).lower()
+                    if any(keyword in cell_text for keyword in ["age", "dob", "date of birth", "born"]):
+                        # Look for the value in the next cell
+                        if i + 1 < len(cells):
+                            next_cell = cells[i + 1].get_text(strip=True)
+                            if next_cell.isdigit():
+                                return next_cell
+        
+        return None
+        
+    except Exception as e:
+        logger.warning(f"Error fetching player age from {player_link}: {e}")
+        return None
+
+def fetch_ages_concurrently(players_with_links: List[tuple]) -> Dict[str, str]:
+    """Fetch ages for multiple players concurrently."""
+    age_results = {}
+    
+    def fetch_single_age(player_data):
+        player_name, player_link = player_data
+        age = fetch_player_age(player_link)
+        return player_name, age
+    
+    # Use ThreadPoolExecutor for concurrent requests
+    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_player = {executor.submit(fetch_single_age, player_data): player_data[0] 
+                           for player_data in players_with_links}
+        
+        for future in concurrent.futures.as_completed(future_to_player):
+            player_name = future_to_player[future]
+            try:
+                name, age = future.result()
+                age_results[name] = age
+                if age:
+                    logger.info(f"Found age {age} for {name}")
+                else:
+                    logger.warning(f"Could not fetch age for {name}")
+            except Exception as e:
+                logger.error(f"Error fetching age for {player_name}: {e}")
+                age_results[player_name] = None
+    
+    return age_results
+
 # ==== SCRAPE TTCAN RATINGS ACROSS ALL PAGES ====
 def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
     """Scrape TTCAN player ratings for a specific gender across multiple pages."""
@@ -116,11 +228,21 @@ def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
                 logger.info("No player rows found. Stopping.")
                 break
 
-            players_this_page = 0
-            for row in rows[1:]:  # Skip header
+            # First, collect all players with their links
+            page_players = []
+            players_with_links = []
+            
+            for idx, row in enumerate(rows[1:]):  # Skip header
                 cols = row.find_all("td")
                 if len(cols) < 7:
                     continue
+                
+                # Extract player link for age fetching
+                player_link = None
+                name_cell = cols[1]
+                link_tag = name_cell.find("a")
+                if link_tag and link_tag.get("href"):
+                    player_link = link_tag.get("href")
                     
                 player = {
                     "Name": cols[1].get_text(strip=True),
@@ -129,13 +251,32 @@ def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
                     "Rating": cols[4].get_text(strip=True),
                     "Period": cols[5].get_text(strip=True),
                     "Last Played": cols[6].get_text(strip=True),
+                    "Age": "0" if gender == 'M' else ""  # Default age 0 for boys
                 }
                 
                 if validate_player_data(player):
-                    all_players.append(player)
-                    players_this_page += 1
+                    page_players.append(player)
+                    if player_link:
+                        players_with_links.append((player["Name"], player_link))
                 else:
                     logger.warning(f"Invalid player data: {player}")
+            
+            # Fetch ages concurrently for this page (only for female players)
+            if players_with_links and gender == 'F':
+                logger.info(f"Fetching ages for {len(players_with_links)} female players concurrently...")
+                age_results = fetch_ages_concurrently(players_with_links)
+                
+                # Update players with age information
+                for player in page_players:
+                    if player["Name"] in age_results:
+                        player["Age"] = age_results[player["Name"]] or ""
+            elif gender == 'M':
+                logger.info(f"Skipping age fetching for {len(page_players)} male players (age set to 0)")
+                # Ages for male players remain 0
+            
+            # Add validated players to the main list
+            players_this_page = len(page_players)
+            all_players.extend(page_players)
 
             logger.info(f"Page {page}: {players_this_page} valid players")
 
@@ -144,9 +285,9 @@ def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
                 logger.info("No valid players found on this page. Stopping scraping.")
                 break
 
-            # Go to next page, add delay to be polite
+            # Go to next page, add small delay to be polite
             page += 1
-            time.sleep(1)
+            time.sleep(0.2)
             
         except Exception as e:
             logger.error(f"Error parsing page {page}: {e}")
@@ -162,7 +303,15 @@ def scrape_all_ttcan_players() -> List[Dict[str, str]]:
     # Scrape both female and male players
     for gender in ['F', 'M']:
         gender_players = scrape_ttcan_players_by_gender(gender)
-        all_players.extend(gender_players)
+        
+        # Only fetch ages for female players to save time
+        if gender == 'F':
+            all_players.extend(gender_players)
+        else:
+            # For male players, set age to 0
+            for player in gender_players:
+                player["Age"] = "0"
+            all_players.extend(gender_players)
         
         # Add delay between gender requests to be polite
         if gender == 'F':
@@ -183,7 +332,7 @@ def write_to_sheet(players: List[Dict[str, str]]) -> bool:
         sheet.clear()
         
         # Add header row
-        header = ["Name", "Province", "Gender", "Rating", "Period", "Last Played"]
+        header = ["Name", "Province", "Gender", "Rating", "Period", "Last Played", "Age"]
         sheet.append_row(header)
         
         # Prepare rows to append
@@ -193,7 +342,8 @@ def write_to_sheet(players: List[Dict[str, str]]) -> bool:
             p["Gender"],
             p["Rating"],
             p["Period"],
-            p["Last Played"]
+            p["Last Played"],
+            p.get("Age", "")
         ] for p in players]
         
         # Write rows in batches to avoid API limits
