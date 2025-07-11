@@ -201,11 +201,23 @@ function App() {
             name: player.name,
             rating: player.rating,
             percentile: percentile,
-            lastPlayed: player.lastPlayed
+            lastPlayed: player.lastPlayed,
+            isActive: true
           });
         } else {
-          // Player not found in current time period
-          setPlayerInfo(null);
+          // Check if player exists in full dataset but not in filtered data
+          const playerInFullData = data.find(p => p.name === playerName);
+          if (playerInFullData) {
+            setPlayerInfo({
+              name: playerInFullData.name,
+              rating: playerInFullData.rating,
+              percentile: null,
+              lastPlayed: playerInFullData.lastPlayed,
+              isActive: false
+            });
+          } else {
+            setPlayerInfo(null);
+          }
         }
       }
     } catch (err) {
@@ -270,13 +282,28 @@ function App() {
         name: player.name,
         rating: player.rating,
         percentile: percentile,
-        lastPlayed: player.lastPlayed
+        lastPlayed: player.lastPlayed,
+        isActive: true
       });
+    } else {
+      // Check if player exists in full dataset but not in filtered data
+      const playerInFullData = data.find(p => p.name === name);
+      if (playerInFullData) {
+        setPlayerInfo({
+          name: playerInFullData.name,
+          rating: playerInFullData.rating,
+          percentile: null,
+          lastPlayed: playerInFullData.lastPlayed,
+          isActive: false
+        });
+      } else {
+        setPlayerInfo(null);
+      }
     }
   };
 
   const calculatePercentileLine = () => {
-    if (!playerInfo) return null;
+    if (!playerInfo || !playerInfo.isActive) return null;
     
     const playerRating = playerInfo.rating;
     
@@ -612,7 +639,7 @@ function App() {
           </div>
 
           {/* Player Info Display */}
-          {playerInfo && (
+          {playerInfo && playerInfo.isActive && (
             <div style={{
               background: "linear-gradient(45deg, #32CD32, #228B22)",
               borderRadius: "20px",
@@ -637,6 +664,43 @@ function App() {
               </div>
               <div style={{ fontSize: "1em", opacity: 0.9 }}>
                 Last played: {playerInfo.lastPlayed}
+              </div>
+            </div>
+          )}
+
+          {/* Inactive Player Warning */}
+          {playerInfo && !playerInfo.isActive && (
+            <div style={{
+              background: "linear-gradient(45deg, #FFB347, #FF8C00)",
+              borderRadius: "20px",
+              padding: "25px",
+              margin: "30px 0",
+              textAlign: "center",
+              color: "white",
+              fontSize: "1.2em",
+              fontWeight: "bold",
+              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
+              boxShadow: "0 10px 30px rgba(255, 179, 71, 0.4)",
+              border: "3px solid #FF8C00"
+            }}>
+              <div style={{ fontSize: "3em", marginBottom: "15px" }}>
+                😴
+              </div>
+              <div style={{ fontSize: "1.5em", marginBottom: "15px" }}>
+                {playerInfo.name}
+              </div>
+              <div style={{ fontSize: "1.3em", marginBottom: "15px" }}>
+                Rating: {playerInfo.rating}
+              </div>
+              <div style={{ fontSize: "1.2em", marginBottom: "15px", lineHeight: "1.4" }}>
+                {'(˘▾˘~)'} Oops! This player hasn't been active in the last{' '}
+                {months === '' || months === '0' ? 'many' : months} month{months !== '1' ? 's' : ''}
+              </div>
+              <div style={{ fontSize: "1.1em", marginBottom: "15px" }}>
+                Last played: {playerInfo.lastPlayed}
+              </div>
+              <div style={{ fontSize: "1em", opacity: 0.9, fontStyle: "italic" }}>
+                Try increasing the time period to see their ranking! ✨
               </div>
             </div>
           )}
