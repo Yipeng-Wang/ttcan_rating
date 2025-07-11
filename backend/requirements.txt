@@ -1,0 +1,5 @@
+requests==2.31.0
+beautifulsoup4==4.12.2
+gspread==6.0.2
+google-auth==2.23.4
+python-dotenv==1.0.0

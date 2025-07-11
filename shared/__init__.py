@@ -1,0 +1,1 @@
+# Shared utilities for TTCAN rating project
