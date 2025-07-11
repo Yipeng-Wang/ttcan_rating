@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2D Table Tennis Game</title>
+    <style>
+        /* Global styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #87CEEB 0%, #98D8E8 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Game container */
+        .game-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+        }
+
+        /* Canvas styling */
+        #gameCanvas {
+            border: 3px solid #333;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #E6F3FF 0%, #B3D9FF 100%);
+            cursor: none;
+        }
+
+        /* Score display */
+        .score-board {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .player-score {
+            color: #FF1493;
+        }
+
+        .ai-score {
+            color: #1E90FF;
+        }
+
+        .game-info {
+            color: #666;
+            font-size: 16px;
+        }
+
+        /* Controls display */
+        .controls {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        /* Game over overlay */
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            display: none;
+        }
+
+        .game-over h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 28px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(45deg, #32CD32, #228B22);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: transform 0.2s;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+        }
+
+        /* Responsive design */
+        @media (max-width: 900px) {
+            #gameCanvas {
+                width: 90vw;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <!-- Score Board -->
+        <div class="score-board">
+            <div class="player-score">Player: <span id="playerScore">0</span></div>
+            <div class="game-info">
+                <span id="gameStatus">Player serves</span>
+            </div>
+            <div class="ai-score">AI: <span id="aiScore">0</span></div>
+        </div>
+
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+
+        <!-- Controls -->
+        <div class="controls">
+            <strong>Controls:</strong> Arrow Keys ↑↓ or W/S to move paddle | Space to serve
+            <br><strong>Rules:</strong> Ball must bounce once per side, no volleying, first to 11 (lead by 2)
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div class="game-over" id="gameOver">
+            <h2 id="winnerText">Player Wins!</h2>
+            <p>Final Score: <span id="finalScore">11-9</span></p>
+            <button class="restart-btn" onclick="restartGame()">Play Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        let gameState = {
+            isPlaying: false,
+            isServing: true,
+            currentServer: 'player', // 'player' or 'ai'
+            serveCount: 0,
+            gameOver: false
+        };
+
+        // Score tracking
+        let score = {
+            player: 0,
+            ai: 0
+        };
+
+        // Table dimensions and positions
+        const table = {
+            x: 50,
+            y: 320,
+            width: 700,
+            height: 60,
+            centerX: 400,
+            leftSide: { x: 50, y: 320, width: 350, height: 60 },
+            rightSide: { x: 400, y: 320, width: 350, height: 60 }
+        };
+
+        // Net properties
+        const net = {
+            x: table.centerX - 5,
+            y: 250,
+            width: 10,
+            height: 70
+        };
+
+        // Ball properties
+        let ball = {
+            x: 200,
+            y: 250,
+            radius: 8,
+            dx: 0,
+            dy: 0,
+            lastBounce: null,
+            bounceCount: 0,
+            isInPlay: false,
+            gravity: 0.3,
+            friction: 0.98
+        };
+
+        // Player paddle (left side)
+        let playerPaddle = {
+            x: 30,
+            y: 200,
+            width: 15,
+            height: 80,
+            speed: 6,
+            color: '#FF1493'
+        };
+
+        // AI paddle (right side)
+        let aiPaddle = {
+            x: 755,
+            y: 200,
+            width: 15,
+            height: 80,
+            speed: 4,
+            color: '#1E90FF',
+            reactionDelay: 0
+        };
+
+        // Input handling
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            
+            // Serve with spacebar
+            if (e.key === ' ' && gameState.isServing && !gameState.gameOver) {
+                serveBall();
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // Initialize game
+        function initGame() {
+            resetBall();
+            gameState.isServing = true;
+            gameState.currentServer = 'player';
+            gameState.serveCount = 0;
+            updateGameStatus();
+        }
+
+        // Reset ball position for serve
+        function resetBall() {
+            ball.isInPlay = false;
+            ball.bounceCount = 0;
+            ball.lastBounce = null;
+            ball.dx = 0;
+            ball.dy = 0;
+            
+            // Position ball based on who's serving
+            if (gameState.currentServer === 'player') {
+                ball.x = table.leftSide.x + table.leftSide.width / 2;
+                ball.y = table.y - 30;
+            } else {
+                ball.x = table.rightSide.x + table.rightSide.width / 2;
+                ball.y = table.y - 30;
+            }
+        }
+
+        // Serve the ball
+        function serveBall() {
+            if (!gameState.isServing) return;
+            
+            ball.isInPlay = true;
+            gameState.isServing = false;
+            
+            // Serve ball across the net
+            if (gameState.currentServer === 'player') {
+                ball.dx = 5 + Math.random() * 2;
+                ball.dy = 2 + Math.random() * 2;
+            } else {
+                ball.dx = -5 - Math.random() * 2;
+                ball.dy = 2 + Math.random() * 2;
+            }
+            
+            updateGameStatus();
+        }
+
+        // AI serve logic
+        function aiServe() {
+            if (gameState.currentServer === 'ai' && gameState.isServing) {
+                setTimeout(() => {
+                    serveBall();
+                }, 1000); // AI serves after 1 second
+            }
+        }
+
+        // Update game status display
+        function updateGameStatus() {
+            const statusElement = document.getElementById('gameStatus');
+            
+            if (gameState.gameOver) {
+                statusElement.textContent = 'Game Over';
+            } else if (gameState.isServing) {
+                statusElement.textContent = `${gameState.currentServer === 'player' ? 'Player' : 'AI'} serves`;
+            } else {
+                statusElement.textContent = 'In play';
+            }
+        }
+
+        // Handle input for player paddle
+        function handleInput() {
+            // Move player paddle up
+            if ((keys['arrowup'] || keys['w']) && playerPaddle.y > 0) {
+                playerPaddle.y -= playerPaddle.speed;
+            }
+            
+            // Move player paddle down
+            if ((keys['arrowdown'] || keys['s']) && playerPaddle.y < canvas.height - playerPaddle.height) {
+                playerPaddle.y += playerPaddle.speed;
+            }
+        }
+
+        // AI paddle logic
+        function updateAI() {
+            if (!ball.isInPlay) return;
+            
+            // Only move AI when ball is coming towards it
+            if (ball.dx > 0 && ball.x > canvas.width / 2) {
+                const ballCenterY = ball.y;
+                const paddleCenterY = aiPaddle.y + aiPaddle.height / 2;
+                
+                // Add some reaction delay for realism
+                if (aiPaddle.reactionDelay <= 0) {
+                    if (paddleCenterY < ballCenterY - 20) {
+                        aiPaddle.y += aiPaddle.speed;
+                    } else if (paddleCenterY > ballCenterY + 20) {
+                        aiPaddle.y -= aiPaddle.speed;
+                    }
+                    aiPaddle.reactionDelay = 3; // Frames to wait
+                } else {
+                    aiPaddle.reactionDelay--;
+                }
+            }
+            
+            // Keep AI paddle in bounds
+            aiPaddle.y = Math.max(0, Math.min(canvas.height - aiPaddle.height, aiPaddle.y));
+        }
+
+        // Ball physics and collision detection
+        function updateBall() {
+            if (!ball.isInPlay) return;
+            
+            // Apply gravity
+            ball.dy += ball.gravity;
+            
+            // Move ball
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+            
+            // Apply friction
+            ball.dx *= ball.friction;
+            
+            // Check collision with net
+            if (ball.x + ball.radius >= net.x && 
+                ball.x - ball.radius <= net.x + net.width &&
+                ball.y + ball.radius >= net.y) {
+                // Ball hit net - point to opponent
+                if (ball.dx > 0) {
+                    addPoint('player');
+                } else {
+                    addPoint('ai');
+                }
+                return;
+            }
+            
+            // Check table collisions
+            checkTableBounce();
+            
+            // Check paddle collisions
+            checkPaddleCollisions();
+            
+            // Check if ball is out of bounds
+            checkOutOfBounds();
+        }
+
+        // Check ball bounce on table
+        function checkTableBounce() {
+            // Left side of table
+            if (ball.x >= table.leftSide.x && 
+                ball.x <= table.leftSide.x + table.leftSide.width &&
+                ball.y + ball.radius >= table.leftSide.y && 
+                ball.y <= table.leftSide.y + table.leftSide.height &&
+                ball.dy > 0 && ball.lastBounce !== 'leftTable') {
+                
+                ball.dy = -Math.abs(ball.dy) * 0.7;
+                ball.y = table.leftSide.y - ball.radius;
+                ball.lastBounce = 'leftTable';
+                ball.bounceCount++;
+            }
+            
+            // Right side of table
+            if (ball.x >= table.rightSide.x && 
+                ball.x <= table.rightSide.x + table.rightSide.width &&
+                ball.y + ball.radius >= table.rightSide.y && 
+                ball.y <= table.rightSide.y + table.rightSide.height &&
+                ball.dy > 0 && ball.lastBounce !== 'rightTable') {
+                
+                ball.dy = -Math.abs(ball.dy) * 0.7;
+                ball.y = table.rightSide.y - ball.radius;
+                ball.lastBounce = 'rightTable';
+                ball.bounceCount++;
+            }
+        }
+
+        // Check paddle collisions
+        function checkPaddleCollisions() {
+            // Player paddle collision
+            if (ball.x - ball.radius <= playerPaddle.x + playerPaddle.width &&
+                ball.x + ball.radius >= playerPaddle.x &&
+                ball.y >= playerPaddle.y &&
+                ball.y <= playerPaddle.y + playerPaddle.height &&
+                ball.dx < 0 && ball.lastBounce !== 'playerPaddle') {
+                
+                // Check if ball has bounced on opponent's side first
+                if (ball.lastBounce === 'rightTable' || gameState.currentServer === 'player') {
+                    ball.dx = Math.abs(ball.dx) * 1.1;
+                    const hitPos = (ball.y - (playerPaddle.y + playerPaddle.height / 2)) / (playerPaddle.height / 2);
+                    ball.dy = hitPos * 8;
+                    ball.lastBounce = 'playerPaddle';
+                    ball.bounceCount = 0;
+                } else {
+                    // Volleying is not allowed - point to AI
+                    addPoint('ai');
+                }
+            }
+            
+            // AI paddle collision
+            if (ball.x + ball.radius >= aiPaddle.x &&
+                ball.x - ball.radius <= aiPaddle.x + aiPaddle.width &&
+                ball.y >= aiPaddle.y &&
+                ball.y <= aiPaddle.y + aiPaddle.height &&
+                ball.dx > 0 && ball.lastBounce !== 'aiPaddle') {
+                
+                // Check if ball has bounced on opponent's side first
+                if (ball.lastBounce === 'leftTable' || gameState.currentServer === 'ai') {
+                    ball.dx = -Math.abs(ball.dx) * 1.1;
+                    const hitPos = (ball.y - (aiPaddle.y + aiPaddle.height / 2)) / (aiPaddle.height / 2);
+                    ball.dy = hitPos * 8;
+                    ball.lastBounce = 'aiPaddle';
+                    ball.bounceCount = 0;
+                } else {
+                    // Volleying is not allowed - point to player
+                    addPoint('player');
+                }
+            }
+        }
+
+        // Check if ball is out of bounds
+        function checkOutOfBounds() {
+            // Ball went out horizontally or vertically
+            if (ball.y > canvas.height || ball.x < 0 || ball.x > canvas.width) {
+                // Determine who gets the point based on the rules
+                if (ball.x < canvas.width / 2) {
+                    // Ball went out on player's side
+                    if (ball.lastBounce === 'leftTable') {
+                        addPoint('ai'); // Valid shot by AI
+                    } else {
+                        addPoint('player'); // AI's fault
+                    }
+                } else {
+                    // Ball went out on AI's side
+                    if (ball.lastBounce === 'rightTable') {
+                        addPoint('player'); // Valid shot by player
+                    } else {
+                        addPoint('ai'); // Player's fault
+                    }
+                }
+            }
+            
+            // Double bounce rule
+            if (ball.bounceCount >= 2 && ball.lastBounce) {
+                if (ball.lastBounce === 'leftTable') {
+                    addPoint('ai');
+                } else if (ball.lastBounce === 'rightTable') {
+                    addPoint('player');
+                }
+            }
+        }
+
+        // Add point to a player
+        function addPoint(winner) {
+            score[winner]++;
+            updateScoreDisplay();
+            
+            // Switch server every 2 points
+            gameState.serveCount++;
+            if (gameState.serveCount % 2 === 0) {
+                gameState.currentServer = gameState.currentServer === 'player' ? 'ai' : 'player';
+            }
+            
+            // Check for game over
+            if (checkGameOver()) {
+                endGame(winner);
+            } else {
+                resetForNextPoint();
+            }
+        }
+
+        // Check if game is over
+        function checkGameOver() {
+            const minScore = 11;
+            const minLead = 2;
+            
+            return (score.player >= minScore || score.ai >= minScore) &&
+                   Math.abs(score.player - score.ai) >= minLead;
+        }
+
+        // End the game
+        function endGame(winner) {
+            gameState.gameOver = true;
+            gameState.isPlaying = false;
+            
+            document.getElementById('winnerText').textContent = 
+                winner === 'player' ? 'Player Wins!' : 'AI Wins!';
+            document.getElementById('finalScore').textContent = 
+                `${score.player}-${score.ai}`;
+            document.getElementById('gameOver').style.display = 'block';
+            
+            updateGameStatus();
+        }
+
+        // Reset for next point
+        function resetForNextPoint() {
+            resetBall();
+            gameState.isServing = true;
+            updateGameStatus();
+            
+            // If AI is serving, auto-serve after delay
+            if (gameState.currentServer === 'ai') {
+                aiServe();
+            }
+        }
+
+        // Update score display
+        function updateScoreDisplay() {
+            document.getElementById('playerScore').textContent = score.player;
+            document.getElementById('aiScore').textContent = score.ai;
+        }
+
+        // Restart game
+        function restartGame() {
+            score.player = 0;
+            score.ai = 0;
+            gameState.gameOver = false;
+            gameState.isPlaying = true;
+            gameState.currentServer = 'player';
+            gameState.serveCount = 0;
+            
+            document.getElementById('gameOver').style.display = 'none';
+            updateScoreDisplay();
+            initGame();
+        }
+
+        // Draw everything
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw table
+            drawTable();
+            
+            // Draw net
+            drawNet();
+            
+            // Draw paddles
+            drawPaddle(playerPaddle);
+            drawPaddle(aiPaddle);
+            
+            // Draw ball
+            drawBall();
+            
+            // Draw ball shadow on table
+            drawBallShadow();
+            
+            // Draw debug info
+            if (ball.isInPlay) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.font = '12px Arial';
+                ctx.fillText(`Bounces: ${ball.bounceCount}`, 10, 20);
+                ctx.fillText(`Last: ${ball.lastBounce || 'none'}`, 10, 35);
+            }
+        }
+
+        // Draw table
+        function drawTable() {
+            // Table surface
+            ctx.fillStyle = '#006600';
+            ctx.fillRect(table.x, table.y, table.width, table.height);
+            
+            // Table outline
+            ctx.strokeStyle = '#004400';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(table.x, table.y, table.width, table.height);
+            
+            // Center line
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 5]);
+            ctx.beginPath();
+            ctx.moveTo(table.centerX, table.y);
+            ctx.lineTo(table.centerX, table.y + table.height);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Side lines
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(table.leftSide.x, table.leftSide.y, table.leftSide.width, table.leftSide.height);
+            ctx.strokeRect(table.rightSide.x, table.rightSide.y, table.rightSide.width, table.rightSide.height);
+        }
+
+        // Draw net
+        function drawNet() {
+            // Net post
+            ctx.fillStyle = '#666';
+            ctx.fillRect(net.x, net.y, net.width, net.height);
+            
+            // Net mesh
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < net.height; i += 4) {
+                for (let j = 0; j < net.width; j += 4) {
+                    ctx.strokeRect(net.x + j, net.y + i, 4, 4);
+                }
+            }
+        }
+
+        // Draw paddle
+        function drawPaddle(paddle) {
+            // Paddle body
+            ctx.fillStyle = paddle.color;
+            ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
+            
+            // Paddle highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(paddle.x + 2, paddle.y + 2, paddle.width - 4, paddle.height - 4);
+            
+            // Paddle outline
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(paddle.x, paddle.y, paddle.width, paddle.height);
+        }
+
+        // Draw ball
+        function drawBall() {
+            // Ball body
+            ctx.fillStyle = '#FF6347';
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Ball highlight
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.beginPath();
+            ctx.arc(ball.x - 2, ball.y - 2, ball.radius * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Ball outline
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Draw ball shadow on table
+        function drawBallShadow() {
+            if (ball.y < table.y) {
+                const shadowOpacity = Math.max(0, 1 - (table.y - ball.y) / 100);
+                const shadowSize = ball.radius * (1 + (table.y - ball.y) / 200);
+                
+                ctx.fillStyle = `rgba(0, 0, 0, ${shadowOpacity * 0.3})`;
+                ctx.beginPath();
+                ctx.ellipse(ball.x, table.y + 5, shadowSize, shadowSize * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Main game loop
+        function gameLoop() {
+            if (!gameState.gameOver) {
+                handleInput();
+                updateAI();
+                updateBall();
+            }
+            
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        initGame();
+        gameState.isPlaying = true;
+        gameLoop();
+    </script>
+</body>
+</html>
