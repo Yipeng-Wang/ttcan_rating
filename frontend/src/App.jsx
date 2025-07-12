@@ -1,13 +1,10 @@
 import React, { useEffect, useState } from "react";
-// Chart imports removed - no longer using histogram
-
 // ====== CONFIGURATION ======
 const SHEET_ID = process.env.REACT_APP_GOOGLE_SHEET_ID;
 const SHEET_NAME = process.env.REACT_APP_GOOGLE_SHEET_NAME || "Sheet1";
 const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 const SHEET_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
 
-// ====== VALIDATION ======
 function validatePlayerData(player) {
   return (
     player.name &&
@@ -20,8 +17,6 @@ function validatePlayerData(player) {
     (player.gender === 'F' || player.gender === 'M' || player.gender === '')
   );
 }
-
-// Histogram utilities removed
 
 // ====== DATE FILTER ======
 function isWithinLastNMonths(dateStr, months) {
@@ -44,7 +39,6 @@ function isWithinLastNMonths(dateStr, months) {
   }
 }
 
-// ====== ERROR BOUNDARY ======
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -79,7 +73,6 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ====== RESPONSIVE UTILITIES ======
 const useWindowSize = () => {
   const [windowSize, setWindowSize] = useState({
     width: window.innerWidth,
@@ -104,17 +97,14 @@ const useWindowSize = () => {
 const isMobile = (width) => width <= 768;
 const isTablet = (width) => width > 768 && width <= 1024;
 
-// ====== MAIN COMPONENT ======
 function App() {
   const [months, setMonths] = useState('');
   const [data, setData] = useState([]);
   const windowSize = useWindowSize();
-  // Histogram removed
   const [activePlayerCount, setActivePlayerCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [playerName, setPlayerName] = useState('');
-  const [playerInfo, setPlayerInfo] = useState(null);
   const [filteredNames, setFilteredNames] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedGender, setSelectedGender] = useState('all');
@@ -125,7 +115,6 @@ function App() {
   const [topPlayers, setTopPlayers] = useState([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
 
-  // Validate configuration
   useEffect(() => {
     if (!SHEET_ID || !API_KEY) {
       setError('Missing configuration. Please check environment variables.');
@@ -134,7 +123,6 @@ function App() {
     }
   }, []);
 
-  // Fetch data once on mount
   useEffect(() => {
     if (!SHEET_ID || !API_KEY) return;
 
@@ -204,7 +192,6 @@ function App() {
     fetchData();
   }, [SHEET_URL]);
 
-  // Re-filter and update count when data, months, gender, age, or province changes
   useEffect(() => {
     try {
       // If months is empty or 0, show all data
@@ -428,7 +415,6 @@ function App() {
     // The useEffect will handle recalculating player info with the new filter values
   };
 
-  // calculatePercentileLine function removed since histogram is gone
 
   if (loading) {
     return (

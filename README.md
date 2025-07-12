@@ -2,6 +2,8 @@
 
 A comprehensive tool for scraping and analyzing TTCAN (Table Tennis Canada) player ratings with interactive visualizations.
 
+🌐 **Live Application**: https://yipeng-wang.github.io/ttcan_rating
+
 ## Features
 
 - **Data Scraping**: Automated scraping of TTCAN player ratings from official website
