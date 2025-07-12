@@ -254,6 +254,19 @@ function App() {
         }));
       setTopPlayers(sortedPlayers);
       
+      // Auto-scroll to player if they're in the top 50
+      if (playerName && sortedPlayers.some(p => p.name === playerName)) {
+        setTimeout(() => {
+          const playerElement = document.querySelector(`[data-player-name="${playerName}"]`);
+          if (playerElement) {
+            playerElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'center'
+            });
+          }
+        }, 100);
+      }
+      
       // Update player info if a player is selected
       if (playerName) {
         const player = filtered.find(p => p.name === playerName);
@@ -1038,6 +1051,7 @@ function App() {
                 {topPlayers.map((player, index) => (
                   <div
                     key={`${player.name}-${player.rating}-${index}`}
+                    data-player-name={player.name}
                     style={{
                       padding: "16px",
                       borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
@@ -1147,6 +1161,7 @@ function App() {
                   {topPlayers.map((player, index) => (
                     <div
                       key={`${player.name}-${player.rating}-${index}`}
+                      data-player-name={player.name}
                       style={{
                         display: "grid",
                         gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
