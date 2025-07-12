@@ -244,17 +244,17 @@ function App() {
       
       setActivePlayerCount(filtered.length);
       
-      // Update top 50 players list
+      // Update top 100 players list
       const sortedPlayers = filtered
         .sort((a, b) => b.rating - a.rating)
-        .slice(0, 50)
+        .slice(0, 100)
         .map((player, index) => ({
           ...player,
           rank: index + 1
         }));
       setTopPlayers(sortedPlayers);
       
-      // Auto-scroll to player if they're in the top 50
+      // Auto-scroll to player if they're in the top 100
       if (playerName && sortedPlayers.some(p => p.name === playerName)) {
         setTimeout(() => {
           const playerElement = document.querySelector(`[data-player-name="${playerName}"]`);
@@ -265,46 +265,6 @@ function App() {
             });
           }
         }, 100);
-      }
-      
-      // Update player info if a player is selected
-      if (playerName) {
-        const player = filtered.find(p => p.name === playerName);
-        if (player) {
-          // Recalculate percentile with new filtered data
-          const ratings = filtered.map(p => p.rating).sort((a, b) => b - a); // Sort descending
-          const playerRating = player.rating;
-          const playerRank = ratings.findIndex(r => r <= playerRating) + 1;
-          const percentile = ((playerRank / ratings.length) * 100).toFixed(1);
-          
-          setPlayerInfo({
-            name: player.name,
-            rating: player.rating,
-            gender: player.gender,
-            age: player.age,
-            percentile: percentile,
-            rank: playerRank,
-            totalPlayers: ratings.length,
-            lastPlayed: player.lastPlayed,
-            isActive: true
-          });
-        } else {
-          // Check if player exists in full dataset but not in filtered data
-          const playerInFullData = data.find(p => p.name === playerName);
-          if (playerInFullData) {
-            setPlayerInfo({
-              name: playerInFullData.name,
-              rating: playerInFullData.rating,
-              gender: playerInFullData.gender,
-              age: playerInFullData.age,
-              percentile: null,
-              lastPlayed: playerInFullData.lastPlayed,
-              isActive: false
-            });
-          } else {
-            setPlayerInfo(null);
-          }
-        }
       }
     } catch (err) {
       console.error('Error filtering data:', err);
@@ -352,7 +312,6 @@ function App() {
       // When name is cleared, reset all filters to their default values
       setFilteredNames([]);
       setShowSuggestions(false);
-      setPlayerInfo(null);
       setSelectedSuggestionIndex(-1);
       
       // Clear all filter values
@@ -709,7 +668,6 @@ function App() {
                       onClick={() => {
                         setPlayerName('');
                         setShowSuggestions(false);
-                        setPlayerInfo(null);
                         setSelectedSuggestionIndex(-1);
                         // Clear all filter values
                         setSelectedProvince('all');
@@ -984,102 +942,26 @@ function App() {
             </div>
           </div>
 
-          {/* Player Info Display */}
-          {playerInfo && (
-            <div className="player-info-card" style={{
-              background: playerInfo.isActive ? 
-                "linear-gradient(45deg, #512DA8, #4527A0)" : 
-                "linear-gradient(45deg, #FFB347, #FF8C00)",
-              borderRadius: "20px",
-              padding: "25px",
-              margin: "30px 0",
-              textAlign: "center",
-              color: "white",
-              fontSize: "1.2em",
-              fontWeight: "bold",
-              textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
-              boxShadow: playerInfo.isActive ? 
-                "0 10px 30px rgba(81, 45, 168, 0.4)" : 
-                "0 10px 30px rgba(255, 179, 71, 0.4)",
-              border: playerInfo.isActive ? 
-                "3px solid #4527A0" : 
-                "3px solid #FF8C00"
+          {/* Active Players Count */}
+          <div style={{
+            background: "linear-gradient(45deg, #f0f7ff, #e3f2fd)",
+            borderRadius: isMobile(windowSize.width) ? "12px" : "16px",
+            padding: isMobile(windowSize.width) ? "16px" : "20px",
+            marginBottom: isMobile(windowSize.width) ? "20px" : "30px",
+            textAlign: "center",
+            border: "1px solid #2196F3",
+            boxShadow: "0 4px 12px rgba(33, 150, 243, 0.1)"
+          }}>
+            <div style={{ 
+              fontSize: isMobile(windowSize.width) ? "1.1em" : "1.3em", 
+              color: "#1976D2",
+              fontWeight: "600"
             }}>
-              {!playerInfo.isActive && (
-                <div style={{ fontSize: "3em", marginBottom: "15px" }}>
-                  😴
-                </div>
-              )}
-              
-              <div className="player-name-title" style={{ 
-                fontSize: isMobile(windowSize.width) ? "1.4em" : "1.5em", 
-                marginBottom: "15px",
-                fontWeight: "600"
-              }}>
-                {playerInfo.isActive ? `🏆 ${playerInfo.name} 🏆` : playerInfo.name}
-              </div>
-              
-              <div className="player-rating" style={{ 
-                fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
-                marginBottom: "15px"
-              }}>
-                Rating: {playerInfo.rating} | {playerInfo.gender === 'F' ? '♀️ Girl' : '♂️ Boy'} | Age: {playerInfo.age || 'Unknown'}
-              </div>
-
-              {playerInfo.isActive ? (
-                <>
-                  <div className="percentile-text" style={{ 
-                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
-                    marginBottom: "10px"
-                  }}>
-                    🎯 You're ranked #{playerInfo.rank} out of {playerInfo.totalPlayers} {
-                      selectedGender === 'all' ? 'players' : 
-                      selectedGender === 'F' ? 'girls' : 'boys'
-                    } in {
-                      selectedProvince !== 'all' ? selectedProvince : 'all provinces'
-                    }, {
-                      selectedAge !== 'all' ? selectedAge.toUpperCase() : 'all age categories'
-                    }! 🎯
-                    <br />
-                    Last played: {playerInfo.lastPlayed}
-                  </div>
-                  <div style={{ 
-                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
-                    opacity: 0.9, 
-                    marginTop: "10px"
-                  }}>
-                    Total active players in last {months === '' || months === '0' ? 'all time' : `${months} month${months !== '1' ? 's' : ''}`}: {activePlayerCount}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="inactive-warning" style={{ 
-                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
-                    marginBottom: "15px", 
-                    lineHeight: "1.4"
-                  }}>
-                    {'(˘▾˘~)'} Oops! This player hasn't been active in the last{' '}
-                    {months === '' || months === '0' ? 'many' : months} month{months !== '1' ? 's' : ''}
-                  </div>
-                  <div style={{ 
-                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
-                    marginBottom: "15px"
-                  }}>
-                    Last played: {playerInfo.lastPlayed}
-                  </div>
-                  <div style={{ 
-                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
-                    opacity: 0.9, 
-                    fontStyle: "italic"
-                  }}>
-                    Try increasing the time period to see their ranking! ✨
-                  </div>
-                </>
-              )}
+              Total active {selectedGender === 'all' ? 'players' : (selectedGender === 'F' ? 'girls' : 'boys')}{selectedAge !== 'all' ? ` (${selectedAge.toUpperCase()})` : ''}{selectedProvince !== 'all' ? ` in ${selectedProvince}` : ''} in the last {months === '' || months === '0' ? 'all time' : `${months} month${months !== '1' ? 's' : ''}`}: {activePlayerCount}
             </div>
-          )}
+          </div>
 
-          {/* Top 50 Players List */}
+          {/* Top 100 Players List */}
           <div className="top-players-section" style={{
             background: "linear-gradient(45deg, #EDE7F6, #D1C4E9)",
             borderRadius: isMobile(windowSize.width) ? "12px" : "20px",
@@ -1096,7 +978,7 @@ function App() {
               textShadow: "2px 2px 4px rgba(69, 39, 160, 0.3)",
               lineHeight: "1.3"
             }}>
-              {isMobile(windowSize.width) ? "Top 50 Players" : "🏆 Top 50 Players"} {selectedGender !== 'all' ? `(${selectedGender === 'F' ? 'Girls' : 'Boys'})` : ''}
+              {isMobile(windowSize.width) ? "Top 100 Players" : "🏆 Top 100 Players"} {selectedGender !== 'all' ? `(${selectedGender === 'F' ? 'Girls' : 'Boys'})` : ''}
               {selectedProvince !== 'all' ? ` in ${selectedProvince}` : ''}
               {selectedAge !== 'all' ? `, ${selectedAge.toUpperCase()}` : ''}
             </h2>
