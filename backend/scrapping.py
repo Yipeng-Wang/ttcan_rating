@@ -62,11 +62,16 @@ except Exception as e:
 
 def validate_player_data(player: Dict[str, str]) -> bool:
     """Validate player data before processing."""
-    required_fields = ["Name", "Province", "Gender", "Rating", "Period", "Last Played"]
+    # Required fields - Gender can be empty
+    required_fields = ["Name", "Province", "Rating", "Period", "Last Played"]
     
     for field in required_fields:
         if field not in player or not player[field].strip():
             return False
+    
+    # Gender is optional (can be empty)
+    if "Gender" not in player:
+        return False
     
     # Validate rating is numeric
     try:
@@ -251,7 +256,7 @@ def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
                     "Rating": cols[4].get_text(strip=True),
                     "Period": cols[5].get_text(strip=True),
                     "Last Played": cols[6].get_text(strip=True),
-                    "Age": "0" if gender == 'M' else ""  # Default age 0 for boys
+                    "Age": ""  # Will be filled by age fetching
                 }
                 
                 if validate_player_data(player):
@@ -261,18 +266,15 @@ def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
                 else:
                     logger.warning(f"Invalid player data: {player}")
             
-            # Fetch ages concurrently for this page (only for female players)
-            if players_with_links and gender == 'F':
-                logger.info(f"Fetching ages for {len(players_with_links)} female players concurrently...")
+            # Fetch ages concurrently for this page (for all players)
+            if players_with_links:
+                logger.info(f"Fetching ages for {len(players_with_links)} {gender} players concurrently...")
                 age_results = fetch_ages_concurrently(players_with_links)
                 
                 # Update players with age information
                 for player in page_players:
                     if player["Name"] in age_results:
                         player["Age"] = age_results[player["Name"]] or ""
-            elif gender == 'M':
-                logger.info(f"Skipping age fetching for {len(page_players)} male players (age set to 0)")
-                # Ages for male players remain 0
             
             # Add validated players to the main list
             players_this_page = len(page_players)
@@ -297,28 +299,27 @@ def scrape_ttcan_players_by_gender(gender: str) -> List[Dict[str, str]]:
     return all_players
 
 def scrape_all_ttcan_players() -> List[Dict[str, str]]:
-    """Scrape all TTCAN player ratings for both genders."""
+    """Scrape all TTCAN player ratings."""
     all_players = []
     
-    # Scrape both female and male players
-    for gender in ['F', 'M']:
-        gender_players = scrape_ttcan_players_by_gender(gender)
-        
-        # Only fetch ages for female players to save time
-        if gender == 'F':
-            all_players.extend(gender_players)
-        else:
-            # For male players, set age to 0
-            for player in gender_players:
-                player["Age"] = "0"
-            all_players.extend(gender_players)
-        
-        # Add delay between gender requests to be polite
-        if gender == 'F':
-            time.sleep(2)
+    # Scrape all players without gender filtering (use empty string to get all)
+    logger.info("Starting to scrape all players...")
+    all_players = scrape_ttcan_players_by_gender('')
     
-    logger.info(f"Total players found across all genders: {len(all_players)}")
-    return all_players
+    # Deduplicate players based on name + rating combination
+    seen_players = set()
+    unique_players = []
+    
+    for player in all_players:
+        player_key = (player["Name"], player["Rating"], player["Province"])
+        if player_key not in seen_players:
+            seen_players.add(player_key)
+            unique_players.append(player)
+        else:
+            logger.debug(f"Duplicate player found: {player['Name']} (Rating: {player['Rating']})")
+    
+    logger.info(f"Total unique players found: {len(unique_players)} (removed {len(all_players) - len(unique_players)} duplicates)")
+    return unique_players
 
 # ==== WRITE TO GOOGLE SHEET ====
 def write_to_sheet(players: List[Dict[str, str]]) -> bool:
