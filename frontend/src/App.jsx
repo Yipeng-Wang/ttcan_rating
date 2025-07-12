@@ -302,7 +302,30 @@ function App() {
         filteredData = filteredData.filter(player => player.gender === selectedGender);
       }
       
-      const filtered = filteredData
+      // Sort by last played date (most recent first), then by rating (highest first)
+      const sorted = filteredData.sort((a, b) => {
+        // Parse dates - assuming format like "MM/DD/YYYY" or "MM-DD-YYYY"
+        const parseDate = (dateStr) => {
+          if (!dateStr) return new Date(0); // Very old date for missing dates
+          const parts = dateStr.split(/[\/\-]/);
+          if (parts.length === 3) {
+            return new Date(parts[2], parts[0] - 1, parts[1]); // Year, Month-1, Day
+          }
+          return new Date(dateStr); // Fallback to native parsing
+        };
+        
+        const dateA = parseDate(a.lastPlayed);
+        const dateB = parseDate(b.lastPlayed);
+        
+        // First sort by date (newest first)
+        if (dateA > dateB) return -1;
+        if (dateA < dateB) return 1;
+        
+        // If dates are equal, sort by rating (highest first)
+        return b.rating - a.rating;
+      });
+      
+      const filtered = sorted
         .map(player => player.name)
         .slice(0, 10); // Limit to 10 suggestions
       
