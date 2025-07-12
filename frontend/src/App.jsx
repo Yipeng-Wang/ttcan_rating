@@ -679,7 +679,7 @@ function App() {
                     className="name-input"
                     style={{
                       width: "100%",
-                      padding: isMobile(windowSize.width) ? "12px 16px" : "15px",
+                      padding: isMobile(windowSize.width) ? "12px 40px 12px 16px" : "15px 45px 15px 15px", // Extra padding on right for clear button
                       fontSize: isMobile(windowSize.width) ? "16px" : "1.1em", // 16px prevents zoom on iOS
                       borderRadius: isMobile(windowSize.width) ? "8px" : "15px",
                       border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
@@ -702,6 +702,68 @@ function App() {
                       }, 200);
                     }}
                   />
+                  
+                  {/* Clear button */}
+                  {playerName && (
+                    <button
+                      onClick={() => {
+                        setPlayerName('');
+                        setShowSuggestions(false);
+                        setPlayerInfo(null);
+                        setSelectedSuggestionIndex(-1);
+                        // Clear all filter values
+                        setSelectedProvince('all');
+                        setSelectedGender('all');
+                        setSelectedAge('all');
+                      }}
+                      style={{
+                        position: "absolute",
+                        right: isMobile(windowSize.width) ? "6px" : "12px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: isMobile(windowSize.width) ? "#f5f5f5" : "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: isMobile(windowSize.width) ? "8px" : "4px",
+                        borderRadius: "50%",
+                        width: isMobile(windowSize.width) ? "36px" : "32px", // Larger touch target on mobile
+                        height: isMobile(windowSize.width) ? "36px" : "32px", // Larger touch target on mobile
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#666",
+                        fontSize: isMobile(windowSize.width) ? "18px" : "18px",
+                        transition: "all 0.2s ease",
+                        minHeight: isMobile(windowSize.width) ? "44px" : "auto", // iOS recommended touch target
+                        minWidth: isMobile(windowSize.width) ? "44px" : "auto"
+                      }}
+                      onMouseOver={(e) => {
+                        if (!isMobile(windowSize.width)) {
+                          e.target.style.backgroundColor = "#f0f0f0";
+                          e.target.style.color = "#333";
+                        }
+                      }}
+                      onMouseOut={(e) => {
+                        if (!isMobile(windowSize.width)) {
+                          e.target.style.backgroundColor = "transparent";
+                          e.target.style.color = "#888";
+                        }
+                      }}
+                      onTouchStart={(e) => {
+                        e.target.style.backgroundColor = "#e0e0e0";
+                        e.target.style.color = "#333";
+                      }}
+                      onTouchEnd={(e) => {
+                        setTimeout(() => {
+                          e.target.style.backgroundColor = "#f5f5f5";
+                          e.target.style.color = "#666";
+                        }, 150);
+                      }}
+                      title="Clear search"
+                    >
+                      ×
+                    </button>
+                  )}
                   
                   {/* Autocomplete Suggestions */}
                   {showSuggestions && filteredNames.length > 0 && (
