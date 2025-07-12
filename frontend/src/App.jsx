@@ -828,7 +828,7 @@ function App() {
                     .sort(([a], [b]) => a.localeCompare(b))
                     .map(([province, count]) => (
                       <option key={province} value={province}>
-                        {province} ({count})
+                        {province}
                       </option>
                     ))}
                 </select>
@@ -861,9 +861,9 @@ function App() {
                     minHeight: isMobile(windowSize.width) ? "48px" : "auto"
                   }}
                 >
-                  <option value="all">All ({Object.values(genderCounts).reduce((sum, count) => sum + count, 0)})</option>
-                  <option value="F">Girls ({genderCounts.F || 0})</option>
-                  <option value="M">Boys ({genderCounts.M || 0})</option>
+                  <option value="all">All</option>
+                  <option value="F">Girls</option>
+                  <option value="M">Boys</option>
                 </select>
               </div>
 
@@ -936,17 +936,27 @@ function App() {
                 </div>
               )}
               
-              <div className="player-name-title" style={{ fontSize: "1.5em", marginBottom: "15px" }}>
+              <div className="player-name-title" style={{ 
+                fontSize: isMobile(windowSize.width) ? "1.4em" : "1.5em", 
+                marginBottom: "15px",
+                fontWeight: "600"
+              }}>
                 {playerInfo.isActive ? `🏆 ${playerInfo.name} 🏆` : playerInfo.name}
               </div>
               
-              <div className="player-rating" style={{ fontSize: "1.3em", marginBottom: "15px" }}>
+              <div className="player-rating" style={{ 
+                fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
+                marginBottom: "15px"
+              }}>
                 Rating: {playerInfo.rating} | {playerInfo.gender === 'F' ? '♀️ Girl' : '♂️ Boy'} | Age: {playerInfo.age || 'Unknown'}
               </div>
 
               {playerInfo.isActive ? (
                 <>
-                  <div className="percentile-text" style={{ fontSize: "1.4em", marginBottom: "10px" }}>
+                  <div className="percentile-text" style={{ 
+                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
+                    marginBottom: "10px"
+                  }}>
                     🎯 You're ranked #{playerInfo.rank} out of {playerInfo.totalPlayers} {
                       selectedGender === 'all' ? 'players' : 
                       selectedGender === 'F' ? 'girls' : 'boys'
@@ -958,20 +968,35 @@ function App() {
                     <br />
                     Last played: {playerInfo.lastPlayed}
                   </div>
-                  <div style={{ fontSize: "1.1em", opacity: 0.9, marginTop: "10px" }}>
+                  <div style={{ 
+                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
+                    opacity: 0.9, 
+                    marginTop: "10px"
+                  }}>
                     Total active players in last {months === '' || months === '0' ? 'all time' : `${months} month${months !== '1' ? 's' : ''}`}: {activePlayerCount}
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="inactive-warning" style={{ fontSize: "1.2em", marginBottom: "15px", lineHeight: "1.4" }}>
+                  <div className="inactive-warning" style={{ 
+                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
+                    marginBottom: "15px", 
+                    lineHeight: "1.4"
+                  }}>
                     {'(˘▾˘~)'} Oops! This player hasn't been active in the last{' '}
                     {months === '' || months === '0' ? 'many' : months} month{months !== '1' ? 's' : ''}
                   </div>
-                  <div style={{ fontSize: "1.1em", marginBottom: "15px" }}>
+                  <div style={{ 
+                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
+                    marginBottom: "15px"
+                  }}>
                     Last played: {playerInfo.lastPlayed}
                   </div>
-                  <div style={{ fontSize: "1em", opacity: 0.9, fontStyle: "italic" }}>
+                  <div style={{ 
+                    fontSize: isMobile(windowSize.width) ? "1em" : "1.2em", 
+                    opacity: 0.9, 
+                    fontStyle: "italic"
+                  }}>
                     Try increasing the time period to see their ranking! ✨
                   </div>
                 </>
@@ -1016,17 +1041,26 @@ function App() {
                     style={{
                       padding: "16px",
                       borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
-                      backgroundColor: "white",
+                      backgroundColor: player.name === playerName ? "#E3F2FD" : "white",
                       cursor: "pointer",
-                      transition: "background-color 0.2s ease"
+                      transition: "background-color 0.2s ease",
+                      border: player.name === playerName ? "2px solid #2196F3" : "none",
+                      borderRadius: player.name === playerName ? "8px" : "0",
+                      margin: player.name === playerName ? "2px" : "0"
                     }}
                     onClick={() => handleNameSelect(player.name)}
                     onTouchStart={(e) => {
-                      e.currentTarget.style.backgroundColor = "#EDE7F6";
+                      if (player.name !== playerName) {
+                        e.currentTarget.style.backgroundColor = "#EDE7F6";
+                      }
                     }}
                     onTouchEnd={(e) => {
                       setTimeout(() => {
-                        e.currentTarget.style.backgroundColor = "white";
+                        if (player.name === playerName) {
+                          e.currentTarget.style.backgroundColor = "#E3F2FD";
+                        } else {
+                          e.currentTarget.style.backgroundColor = "white";
+                        }
                       }, 150);
                     }}
                   >
@@ -1119,18 +1153,27 @@ function App() {
                         gap: "10px",
                         padding: "12px 15px",
                         borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
-                        backgroundColor: index % 2 === 0 ? "#f9f9f9" : "white",
+                        backgroundColor: player.name === playerName ? "#E3F2FD" : (index % 2 === 0 ? "#f9f9f9" : "white"),
                         fontSize: "0.95em",
                         textAlign: "center",
                         alignItems: "center",
                         cursor: "pointer",
-                        transition: "background-color 0.2s ease"
+                        transition: "background-color 0.2s ease",
+                        border: player.name === playerName ? "2px solid #2196F3" : "none",
+                        borderRadius: player.name === playerName ? "8px" : "0",
+                        margin: player.name === playerName ? "2px" : "0"
                       }}
                       onMouseOver={(e) => {
-                        e.currentTarget.style.backgroundColor = "#EDE7F6";
+                        if (player.name !== playerName) {
+                          e.currentTarget.style.backgroundColor = "#EDE7F6";
+                        }
                       }}
                       onMouseOut={(e) => {
-                        e.currentTarget.style.backgroundColor = index % 2 === 0 ? "#f9f9f9" : "white";
+                        if (player.name === playerName) {
+                          e.currentTarget.style.backgroundColor = "#E3F2FD";
+                        } else {
+                          e.currentTarget.style.backgroundColor = index % 2 === 0 ? "#f9f9f9" : "white";
+                        }
                       }}
                       onClick={() => handleNameSelect(player.name)}
                     >
