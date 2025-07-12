@@ -79,10 +79,36 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ====== RESPONSIVE UTILITIES ======
+const useWindowSize = () => {
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return windowSize;
+};
+
+const isMobile = (width) => width <= 768;
+const isTablet = (width) => width > 768 && width <= 1024;
+
 // ====== MAIN COMPONENT ======
 function App() {
   const [months, setMonths] = useState('');
   const [data, setData] = useState([]);
+  const windowSize = useWindowSize();
   // Histogram removed
   const [activePlayerCount, setActivePlayerCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -328,14 +354,38 @@ function App() {
     
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedSuggestionIndex(prev => 
-        prev < filteredNames.length - 1 ? prev + 1 : 0
-      );
+      setSelectedSuggestionIndex(prev => {
+        const newIndex = prev < filteredNames.length - 1 ? prev + 1 : 0;
+        // Scroll the selected item into view
+        setTimeout(() => {
+          const suggestionContainer = document.querySelector('.autocomplete-suggestions');
+          const selectedItem = suggestionContainer?.children[newIndex];
+          if (selectedItem && suggestionContainer) {
+            selectedItem.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest'
+            });
+          }
+        }, 0);
+        return newIndex;
+      });
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedSuggestionIndex(prev => 
-        prev > 0 ? prev - 1 : filteredNames.length - 1
-      );
+      setSelectedSuggestionIndex(prev => {
+        const newIndex = prev > 0 ? prev - 1 : filteredNames.length - 1;
+        // Scroll the selected item into view
+        setTimeout(() => {
+          const suggestionContainer = document.querySelector('.autocomplete-suggestions');
+          const selectedItem = suggestionContainer?.children[newIndex];
+          if (selectedItem && suggestionContainer) {
+            selectedItem.scrollIntoView({
+              behavior: 'smooth',
+              block: 'nearest'
+            });
+          }
+        }, 0);
+        return newIndex;
+      });
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (selectedSuggestionIndex >= 0 && selectedSuggestionIndex < filteredNames.length) {
@@ -391,7 +441,7 @@ function App() {
         padding: 32, 
         fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif", 
         textAlign: "center",
-        background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 50%, #FFC0CB 100%)",
+        background: "linear-gradient(135deg, #E3F2FD 0%, #90CAF9 50%, #BBDEFB 100%)",
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
@@ -402,13 +452,13 @@ function App() {
           background: "white",
           padding: "40px",
           borderRadius: "25px",
-          boxShadow: "0 10px 30px rgba(255, 182, 193, 0.4)",
-          border: "3px solid #FF69B4"
+          boxShadow: "0 10px 30px rgba(144, 202, 249, 0.4)",
+          border: "3px solid #2196F3"
         }}>
           <h2 style={{ 
-            color: "#FF1493", 
+            color: "#1976D2", 
             fontSize: "2.5em",
-            textShadow: "2px 2px 4px rgba(255, 20, 147, 0.3)",
+            textShadow: "2px 2px 4px rgba(25, 118, 210, 0.3)",
             marginBottom: "20px"
           }}>
             🏓✨ Loading TTCAN Data ✨🏓
@@ -416,13 +466,13 @@ function App() {
           <div style={{
             width: "60px",
             height: "60px",
-            border: "6px solid #FFB6C1",
-            borderTop: "6px solid #FF1493",
+            border: "6px solid #90CAF9",
+            borderTop: "6px solid #1976D2",
             borderRadius: "50%",
             animation: "spin 1s linear infinite",
             margin: "20px auto"
           }} />
-          <p style={{ color: "#FF69B4", fontSize: "1.2em" }}>
+          <p style={{ color: "#2196F3", fontSize: "1.2em" }}>
             Please wait while we fetch the latest data! {'(´∀`)'}
           </p>
         </div>
@@ -435,7 +485,7 @@ function App() {
       <div style={{ 
         padding: 32, 
         fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
-        background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 50%, #FFC0CB 100%)",
+        background: "linear-gradient(135deg, #E3F2FD 0%, #90CAF9 50%, #BBDEFB 100%)",
         minHeight: "100vh",
         display: "flex",
         flexDirection: "column",
@@ -446,7 +496,7 @@ function App() {
           background: "white",
           padding: "40px",
           borderRadius: "25px",
-          boxShadow: "0 10px 30px rgba(255, 182, 193, 0.4)",
+          boxShadow: "0 10px 30px rgba(144, 202, 249, 0.4)",
           border: "3px solid #FF6B6B",
           textAlign: "center"
         }}>
@@ -463,24 +513,24 @@ function App() {
           <button 
             onClick={() => window.location.reload()} 
             style={{ 
-              background: "linear-gradient(45deg, #FF69B4, #FF1493)",
+              background: "linear-gradient(45deg, #2196F3, #1976D2)",
               color: "white",
               border: "none",
               padding: "15px 30px",
               fontSize: "1.1em",
               borderRadius: "25px",
               cursor: "pointer",
-              boxShadow: "0 5px 15px rgba(255, 105, 180, 0.3)",
+              boxShadow: "0 5px 15px rgba(33, 150, 243, 0.3)",
               transition: "all 0.3s ease",
               fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif"
             }}
             onMouseOver={(e) => {
               e.target.style.transform = "scale(1.05)";
-              e.target.style.boxShadow = "0 7px 20px rgba(255, 105, 180, 0.5)";
+              e.target.style.boxShadow = "0 7px 20px rgba(33, 150, 243, 0.5)";
             }}
             onMouseOut={(e) => {
               e.target.style.transform = "scale(1)";
-              e.target.style.boxShadow = "0 5px 15px rgba(255, 105, 180, 0.3)";
+              e.target.style.boxShadow = "0 5px 15px rgba(33, 150, 243, 0.3)";
             }}
           >
             🔄 Try Again! ✨
@@ -493,80 +543,86 @@ function App() {
   return (
     <div style={{ 
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #FFE4E1 0%, #FFB6C1 30%, #FFC0CB 60%, #FFE4E1 100%)",
+      background: "linear-gradient(135deg, #E3F2FD 0%, #90CAF9 30%, #BBDEFB 60%, #E3F2FD 100%)",
       fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
-      padding: "20px"
+      padding: isMobile(windowSize.width) ? "8px" : "20px"
     }}>
-      {/* Floating decoration elements */}
-      <div className="floating-decoration" style={{
-        position: "fixed",
-        top: "10%",
-        left: "5%",
-        fontSize: "3em",
-        opacity: 0.3,
-        animation: "float 3s ease-in-out infinite",
-        zIndex: 1
-      }}>🏓</div>
-      <div className="floating-decoration" style={{
-        position: "fixed",
-        top: "20%",
-        right: "10%",
-        fontSize: "2em",
-        opacity: 0.3,
-        animation: "float 4s ease-in-out infinite reverse",
-        zIndex: 1
-      }}>✨</div>
-      <div className="floating-decoration" style={{
-        position: "fixed",
-        bottom: "15%",
-        left: "8%",
-        fontSize: "2.5em",
-        opacity: 0.3,
-        animation: "float 3.5s ease-in-out infinite",
-        zIndex: 1
-      }}>🌸</div>
-      <div className="floating-decoration" style={{
-        position: "fixed",
-        bottom: "10%",
-        right: "5%",
-        fontSize: "2em",
-        opacity: 0.3,
-        animation: "float 4.5s ease-in-out infinite reverse",
-        zIndex: 1
-      }}>💫</div>
+      {/* Floating decoration elements - hidden on mobile */}
+      {!isMobile(windowSize.width) && (
+        <>
+          <div className="floating-decoration" style={{
+            position: "fixed",
+            top: "10%",
+            left: "5%",
+            fontSize: "3em",
+            opacity: 0.3,
+            animation: "float 3s ease-in-out infinite",
+            zIndex: 1
+          }}>🏓</div>
+          <div className="floating-decoration" style={{
+            position: "fixed",
+            top: "20%",
+            right: "10%",
+            fontSize: "2em",
+            opacity: 0.3,
+            animation: "float 4s ease-in-out infinite reverse",
+            zIndex: 1
+          }}>✨</div>
+          <div className="floating-decoration" style={{
+            position: "fixed",
+            bottom: "15%",
+            left: "8%",
+            fontSize: "2.5em",
+            opacity: 0.3,
+            animation: "float 3.5s ease-in-out infinite",
+            zIndex: 1
+          }}>🌸</div>
+          <div className="floating-decoration" style={{
+            position: "fixed",
+            bottom: "10%",
+            right: "5%",
+            fontSize: "2em",
+            opacity: 0.3,
+            animation: "float 4.5s ease-in-out infinite reverse",
+            zIndex: 1
+          }}>💫</div>
+        </>
+      )}
 
       <div className="main-container" style={{ 
         maxWidth: "1200px",
         margin: "0 auto",
         position: "relative",
         zIndex: 2,
-        padding: "20px"
+        padding: isMobile(windowSize.width) ? "8px" : "20px"
       }}>
         <div className="content-card" style={{
           background: "rgba(255, 255, 255, 0.95)",
-          borderRadius: "30px",
-          padding: "40px",
-          boxShadow: "0 20px 60px rgba(255, 182, 193, 0.3)",
-          border: "4px solid #FF69B4",
+          borderRadius: isMobile(windowSize.width) ? "16px" : "30px",
+          padding: isMobile(windowSize.width) ? "20px" : "40px",
+          boxShadow: isMobile(windowSize.width) ? "0 8px 32px rgba(144, 202, 249, 0.3)" : "0 20px 60px rgba(144, 202, 249, 0.3)",
+          border: isMobile(windowSize.width) ? "2px solid #2196F3" : "4px solid #2196F3",
           backdropFilter: "blur(10px)"
         }}>
           <h1 className="title-text" style={{ 
             textAlign: "center",
-            color: "#FF1493",
-            fontSize: "3em",
-            textShadow: "3px 3px 6px rgba(255, 20, 147, 0.3)",
-            marginBottom: "10px",
-            letterSpacing: "2px"
+            color: "#1976D2",
+            fontSize: isMobile(windowSize.width) ? "1.8em" : "3em",
+            textShadow: "3px 3px 6px rgba(25, 118, 210, 0.3)",
+            marginBottom: isMobile(windowSize.width) ? "8px" : "10px",
+            letterSpacing: isMobile(windowSize.width) ? "1px" : "2px",
+            lineHeight: "1.2"
           }}>
-            🏓✨ TTCan Rating Search ✨🏓
+            {isMobile(windowSize.width) ? "TTCan Rating Search" : "🏓✨ TTCan Rating Search ✨🏓"}
           </h1>
           
           <p className="subtitle-text" style={{
             textAlign: "center",
-            color: "#FF69B4",
-            fontSize: "1.3em",
-            marginBottom: "40px",
-            fontStyle: "italic"
+            color: "#2196F3",
+            fontSize: isMobile(windowSize.width) ? "1em" : "1.3em",
+            marginBottom: isMobile(windowSize.width) ? "24px" : "40px",
+            fontStyle: "italic",
+            lineHeight: "1.4"
           }}>
             Discover the amazing world of Canadian table tennis ratings
           </p>
@@ -574,33 +630,33 @@ function App() {
           {/* First Row: Player Name Input and Active Period */}
           <div className="input-section" style={{
             background: "linear-gradient(45deg, #f5f5f5, #e8e8e8)",
-            borderRadius: "20px",
-            padding: "25px",
-            marginBottom: "20px",
-            border: "3px solid #888888",
+            borderRadius: isMobile(windowSize.width) ? "12px" : "20px",
+            padding: isMobile(windowSize.width) ? "16px" : "25px",
+            marginBottom: isMobile(windowSize.width) ? "16px" : "20px",
+            border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
             boxShadow: "0 10px 25px rgba(128, 128, 128, 0.2)",
             position: "relative"
           }}>
             <div style={{ 
               display: "grid", 
-              gridTemplateColumns: "2fr 1fr",
-              gap: "30px",
+              gridTemplateColumns: isMobile(windowSize.width) ? "1fr" : "2fr 1fr",
+              gap: isMobile(windowSize.width) ? "20px" : "30px",
               alignItems: "start"
             }}>
               {/* Player Name Input */}
               <div>
                 <label style={{
                   display: "block",
-                  fontSize: "1.3em",
+                  fontSize: isMobile(windowSize.width) ? "1.1em" : "1.3em",
                   color: "#444444",
                   fontWeight: "bold",
-                  marginBottom: "15px",
-                  textAlign: "center"
+                  marginBottom: isMobile(windowSize.width) ? "12px" : "15px",
+                  textAlign: isMobile(windowSize.width) ? "left" : "center"
                 }}>
                   Player Name
                 </label>
                 
-                <div style={{ position: "relative", maxWidth: "400px", margin: "0 auto" }}>
+                <div style={{ position: "relative", maxWidth: isMobile(windowSize.width) ? "100%" : "400px", margin: isMobile(windowSize.width) ? "0" : "0 auto" }}>
                   <input
                     type="text"
                     value={playerName}
@@ -610,15 +666,15 @@ function App() {
                     className="name-input"
                     style={{
                       width: "100%",
-                      padding: "15px",
-                      fontSize: "1.1em",
-                      borderRadius: "15px",
-                      border: "3px solid #888888",
+                      padding: isMobile(windowSize.width) ? "12px 16px" : "15px",
+                      fontSize: isMobile(windowSize.width) ? "16px" : "1.1em", // 16px prevents zoom on iOS
+                      borderRadius: isMobile(windowSize.width) ? "8px" : "15px",
+                      border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
                       fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                       color: "#444444",
                       background: "white",
                       boxShadow: "0 5px 15px rgba(128, 128, 128, 0.2)",
-                      textAlign: "center"
+                      textAlign: isMobile(windowSize.width) ? "left" : "center"
                     }}
                     onFocus={() => {
                       if (filteredNames.length > 0) {
@@ -642,10 +698,10 @@ function App() {
                       left: "0",
                       right: "0",
                       background: "white",
-                      border: "3px solid #888888",
+                      border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
                       borderTop: "none",
-                      borderRadius: "0 0 15px 15px",
-                      maxHeight: "200px",
+                      borderRadius: isMobile(windowSize.width) ? "0 0 8px 8px" : "0 0 15px 15px",
+                      maxHeight: isMobile(windowSize.width) ? "160px" : "200px",
                       overflowY: "auto",
                       zIndex: 1000,
                       boxShadow: "0 5px 15px rgba(128, 128, 128, 0.3)"
@@ -654,12 +710,16 @@ function App() {
                         <div
                           key={index}
                           style={{
-                            padding: "10px 15px",
+                            padding: isMobile(windowSize.width) ? "14px 16px" : "10px 15px", // Larger touch targets
                             cursor: "pointer",
                             borderBottom: index < filteredNames.length - 1 ? "1px solid #e8e8e8" : "none",
                             color: "#444444",
                             fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
-                            backgroundColor: selectedSuggestionIndex === index ? "#e8f5e8" : "white"
+                            backgroundColor: selectedSuggestionIndex === index ? "#e8f5e8" : "white",
+                            fontSize: isMobile(windowSize.width) ? "16px" : "1em", // Prevent zoom on iOS
+                            minHeight: isMobile(windowSize.width) ? "44px" : "auto", // iOS recommended touch target
+                            display: "flex",
+                            alignItems: "center"
                           }}
                           onMouseDown={() => handleNameSelect(name)}
                           onMouseEnter={() => setSelectedSuggestionIndex(index)}
@@ -677,15 +737,15 @@ function App() {
               <div>
                 <label style={{
                   display: "block",
-                  fontSize: "1.3em",
+                  fontSize: isMobile(windowSize.width) ? "1.1em" : "1.3em",
                   color: "#444444",
                   fontWeight: "bold",
-                  marginBottom: "15px",
-                  textAlign: "center"
+                  marginBottom: isMobile(windowSize.width) ? "12px" : "15px",
+                  textAlign: isMobile(windowSize.width) ? "left" : "center"
                 }}>
-                  🗓️ Active in Last
+                  {isMobile(windowSize.width) ? "Active in Last" : "🗓️ Active in Last"}
                 </label>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px", justifyContent: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", justifyContent: isMobile(windowSize.width) ? "flex-start" : "center" }}>
                   <input
                     type="number"
                     min={1}
@@ -694,11 +754,11 @@ function App() {
                     onChange={handleMonthsChange}
                     placeholder="All"
                     style={{
-                      width: "80px",
-                      padding: "15px 12px",
-                      fontSize: "1.1em",
-                      borderRadius: "15px",
-                      border: "3px solid #888888",
+                      width: isMobile(windowSize.width) ? "100px" : "80px",
+                      padding: isMobile(windowSize.width) ? "12px 16px" : "15px 12px",
+                      fontSize: isMobile(windowSize.width) ? "16px" : "1.1em", // Prevent zoom on iOS
+                      borderRadius: isMobile(windowSize.width) ? "8px" : "15px",
+                      border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
                       textAlign: "center",
                       fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                       color: "#444444",
@@ -706,10 +766,10 @@ function App() {
                       boxShadow: "0 5px 15px rgba(128, 128, 128, 0.2)"
                     }}
                   />
-                  <span style={{ color: "#444444", fontSize: "1.1em", fontWeight: "bold" }}>months</span>
+                  <span style={{ color: "#444444", fontSize: isMobile(windowSize.width) ? "1em" : "1.1em", fontWeight: "bold" }}>months</span>
                 </div>
                 <div style={{ 
-                  textAlign: "center", 
+                  textAlign: isMobile(windowSize.width) ? "left" : "center", 
                   marginTop: "8px", 
                   fontSize: "0.9em", 
                   color: "#666666",
@@ -724,42 +784,43 @@ function App() {
           {/* Second Row: Filter Controls */}
           <div className="filters-section" style={{
             background: "linear-gradient(45deg, #f5f5f5, #e8e8e8)",
-            borderRadius: "20px",
-            padding: "25px",
-            marginBottom: "30px",
-            border: "3px solid #888888",
+            borderRadius: isMobile(windowSize.width) ? "12px" : "20px",
+            padding: isMobile(windowSize.width) ? "16px" : "25px",
+            marginBottom: isMobile(windowSize.width) ? "20px" : "30px",
+            border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
             boxShadow: "0 10px 25px rgba(128, 128, 128, 0.2)"
           }}>
             <div style={{ 
               display: "grid", 
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: "20px",
+              gridTemplateColumns: isMobile(windowSize.width) ? "1fr" : "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: isMobile(windowSize.width) ? "16px" : "20px",
               alignItems: "center"
             }}>
               {/* Province Filter */}
               <div className="filter-group">
                 <label style={{
                   display: "block",
-                  fontSize: "1.1em",
+                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em",
                   color: "#444444",
                   fontWeight: "bold",
                   marginBottom: "8px"
                 }}>
-                  🏛️ Province
+                  {isMobile(windowSize.width) ? "Province" : "🏛️ Province"}
                 </label>
                 <select
                   value={selectedProvince}
                   onChange={(e) => setSelectedProvince(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "12px",
-                    fontSize: "1em",
-                    borderRadius: "10px",
-                    border: "2px solid #888888",
+                    padding: isMobile(windowSize.width) ? "14px 16px" : "12px",
+                    fontSize: isMobile(windowSize.width) ? "16px" : "1em", // Prevent zoom on iOS
+                    borderRadius: isMobile(windowSize.width) ? "8px" : "10px",
+                    border: "2px solid #2196F3",
                     fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                     color: "#444444",
                     background: "white",
-                    cursor: "pointer"
+                    cursor: "pointer",
+                    minHeight: isMobile(windowSize.width) ? "48px" : "auto" // Better touch target
                   }}
                 >
                   <option value="all">All Provinces</option>
@@ -777,26 +838,27 @@ function App() {
               <div className="filter-group">
                 <label style={{
                   display: "block",
-                  fontSize: "1.1em",
+                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em",
                   color: "#444444",
                   fontWeight: "bold",
                   marginBottom: "8px"
                 }}>
-                  👫 Gender
+                  {isMobile(windowSize.width) ? "Gender" : "👫 Gender"}
                 </label>
                 <select
                   value={selectedGender}
                   onChange={(e) => setSelectedGender(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "12px",
-                    fontSize: "1em",
-                    borderRadius: "10px",
-                    border: "2px solid #888888",
+                    padding: isMobile(windowSize.width) ? "14px 16px" : "12px",
+                    fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                    borderRadius: isMobile(windowSize.width) ? "8px" : "10px",
+                    border: "2px solid #2196F3",
                     fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                     color: "#444444",
                     background: "white",
-                    cursor: "pointer"
+                    cursor: "pointer",
+                    minHeight: isMobile(windowSize.width) ? "48px" : "auto"
                   }}
                 >
                   <option value="all">All ({Object.values(genderCounts).reduce((sum, count) => sum + count, 0)})</option>
@@ -809,26 +871,27 @@ function App() {
               <div className="filter-group">
                 <label style={{
                   display: "block",
-                  fontSize: "1.1em",
+                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em",
                   color: "#444444",
                   fontWeight: "bold",
                   marginBottom: "8px"
                 }}>
-                  🎂 Age
+                  {isMobile(windowSize.width) ? "Age Category" : "🎂 Age"}
                 </label>
                 <select
                   value={selectedAge}
                   onChange={(e) => setSelectedAge(e.target.value)}
                   style={{
                     width: "100%",
-                    padding: "12px",
-                    fontSize: "1em",
-                    borderRadius: "10px",
-                    border: "2px solid #888888",
+                    padding: isMobile(windowSize.width) ? "14px 16px" : "12px",
+                    fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                    borderRadius: isMobile(windowSize.width) ? "8px" : "10px",
+                    border: "2px solid #2196F3",
                     fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
                     color: "#444444",
                     background: "white",
-                    cursor: "pointer"
+                    cursor: "pointer",
+                    minHeight: isMobile(windowSize.width) ? "48px" : "auto"
                   }}
                 >
                   <option value="all">All Ages</option>
@@ -850,7 +913,7 @@ function App() {
           {playerInfo && (
             <div className="player-info-card" style={{
               background: playerInfo.isActive ? 
-                "linear-gradient(45deg, #32CD32, #228B22)" : 
+                "linear-gradient(45deg, #512DA8, #4527A0)" : 
                 "linear-gradient(45deg, #FFB347, #FF8C00)",
               borderRadius: "20px",
               padding: "25px",
@@ -861,10 +924,10 @@ function App() {
               fontWeight: "bold",
               textShadow: "2px 2px 4px rgba(0, 0, 0, 0.3)",
               boxShadow: playerInfo.isActive ? 
-                "0 10px 30px rgba(50, 205, 50, 0.4)" : 
+                "0 10px 30px rgba(81, 45, 168, 0.4)" : 
                 "0 10px 30px rgba(255, 179, 71, 0.4)",
               border: playerInfo.isActive ? 
-                "3px solid #228B22" : 
+                "3px solid #4527A0" : 
                 "3px solid #FF8C00"
             }}>
               {!playerInfo.isActive && (
@@ -918,120 +981,201 @@ function App() {
 
           {/* Top 50 Players List */}
           <div className="top-players-section" style={{
-            background: "linear-gradient(45deg, #e8f5e8, #d4f4d4)",
-            borderRadius: "20px",
-            padding: "25px",
-            marginTop: "30px",
-            border: "3px solid #4CAF50",
-            boxShadow: "0 10px 25px rgba(76, 175, 80, 0.2)"
+            background: "linear-gradient(45deg, #EDE7F6, #D1C4E9)",
+            borderRadius: isMobile(windowSize.width) ? "12px" : "20px",
+            padding: isMobile(windowSize.width) ? "16px" : "25px",
+            marginTop: isMobile(windowSize.width) ? "20px" : "30px",
+            border: isMobile(windowSize.width) ? "2px solid #512DA8" : "3px solid #512DA8",
+            boxShadow: "0 10px 25px rgba(81, 45, 168, 0.2)"
           }}>
             <h2 style={{
               textAlign: "center",
-              color: "#2E7D32",
-              fontSize: "2em",
-              marginBottom: "20px",
-              textShadow: "2px 2px 4px rgba(46, 125, 50, 0.3)"
+              color: "#4527A0",
+              fontSize: isMobile(windowSize.width) ? "1.5em" : "2em",
+              marginBottom: isMobile(windowSize.width) ? "16px" : "20px",
+              textShadow: "2px 2px 4px rgba(69, 39, 160, 0.3)",
+              lineHeight: "1.3"
             }}>
-              🏆 Top 50 Players {selectedGender !== 'all' ? `(${selectedGender === 'F' ? 'Girls' : 'Boys'})` : ''}
+              {isMobile(windowSize.width) ? "Top 50 Players" : "🏆 Top 50 Players"} {selectedGender !== 'all' ? `(${selectedGender === 'F' ? 'Girls' : 'Boys'})` : ''}
               {selectedProvince !== 'all' ? ` in ${selectedProvince}` : ''}
               {selectedAge !== 'all' ? `, ${selectedAge.toUpperCase()}` : ''}
             </h2>
             
-            <div className="top-players-table" style={{
-              background: "white",
-              borderRadius: "15px",
-              overflow: "hidden",
-              boxShadow: "0 5px 15px rgba(0, 0, 0, 0.1)"
-            }}>
-              {/* Table Header */}
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
-                gap: "10px",
-                padding: "15px",
-                background: "linear-gradient(45deg, #4CAF50, #45a049)",
-                color: "white",
-                fontWeight: "bold",
-                fontSize: "1em",
-                textAlign: "center",
-                alignItems: "center"
+{isMobile(windowSize.width) ? (
+              /* Mobile Card Layout */
+              <div style={{ 
+                maxHeight: "500px", 
+                overflowY: "auto",
+                background: "white",
+                borderRadius: "8px",
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)"
               }}>
-                <div>Rank</div>
-                <div>Name</div>
-                <div>Province</div>
-                <div>Gender</div>
-                <div>Rating</div>
-                <div>Age</div>
-                <div>Last Played</div>
-              </div>
-              
-              {/* Table Rows */}
-              <div style={{ maxHeight: "600px", overflowY: "auto" }}>
                 {topPlayers.map((player, index) => (
                   <div
                     key={`${player.name}-${player.rating}-${index}`}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
-                      gap: "10px",
-                      padding: "12px 15px",
+                      padding: "16px",
                       borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
-                      backgroundColor: index % 2 === 0 ? "#f9f9f9" : "white",
-                      fontSize: "0.95em",
-                      textAlign: "center",
-                      alignItems: "center",
+                      backgroundColor: "white",
                       cursor: "pointer",
                       transition: "background-color 0.2s ease"
                     }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.backgroundColor = "#e8f5e8";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.backgroundColor = index % 2 === 0 ? "#f9f9f9" : "white";
-                    }}
                     onClick={() => handleNameSelect(player.name)}
+                    onTouchStart={(e) => {
+                      e.currentTarget.style.backgroundColor = "#EDE7F6";
+                    }}
+                    onTouchEnd={(e) => {
+                      setTimeout(() => {
+                        e.currentTarget.style.backgroundColor = "white";
+                      }, 150);
+                    }}
                   >
-                    <div style={{
-                      fontWeight: "bold",
-                      color: player.rank <= 3 ? (player.rank === 1 ? "#FFD700" : player.rank === 2 ? "#C0C0C0" : "#CD7F32") : "#333",
-                      fontSize: player.rank <= 3 ? "1.1em" : "1em"
-                    }}>
-                      {player.rank <= 3 ? (player.rank === 1 ? "🥇" : player.rank === 2 ? "🥈" : "🥉") : `#${player.rank}`}
+                    {/* Rank and Name Row */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                      <div style={{
+                        fontWeight: "bold",
+                        color: player.rank <= 3 ? (player.rank === 1 ? "#FFD700" : player.rank === 2 ? "#C0C0C0" : "#CD7F32") : "#333",
+                        fontSize: "1.2em"
+                      }}>
+                        {player.rank <= 3 ? (player.rank === 1 ? "🥇" : player.rank === 2 ? "🥈" : "🥉") : `#${player.rank}`}
+                      </div>
+                      <div style={{ 
+                        fontWeight: "600", 
+                        color: "#4527A0",
+                        fontSize: "1.1em",
+                        flex: 1,
+                        textAlign: "right"
+                      }}>
+                        {player.name}
+                      </div>
                     </div>
-                    <div style={{ textAlign: "left", fontWeight: "500", color: "#2E7D32" }}>
-                      {player.name}
+                    
+                    {/* Rating Row */}
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                      <span style={{ color: "#666", fontSize: "0.9em" }}>Rating:</span>
+                      <span style={{ fontWeight: "bold", color: "#1976D2", fontSize: "1.1em" }}>
+                        {player.rating}
+                      </span>
                     </div>
-                    <div style={{ color: "#666" }}>
-                      {player.province}
-                    </div>
-                    <div style={{ color: "#666" }}>
-                      {player.gender || 'N/A'}
-                    </div>
-                    <div style={{ fontWeight: "bold", color: "#1976D2" }}>
-                      {player.rating}
-                    </div>
-                    <div style={{ color: "#666" }}>
-                      {player.age || 'N/A'}
-                    </div>
-                    <div style={{ color: "#666", fontSize: "0.9em" }}>
-                      {player.lastPlayed}
+                    
+                    {/* Details Row */}
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9em", color: "#666" }}>
+                      <span>{player.province} • {player.gender || 'N/A'} • Age {player.age || 'N/A'}</span>
+                      <span>{player.lastPlayed}</span>
                     </div>
                   </div>
                 ))}
+                
+                {topPlayers.length === 0 && (
+                  <div style={{
+                    padding: "40px 16px",
+                    textAlign: "center",
+                    color: "#666",
+                    fontSize: "1em",
+                    fontStyle: "italic"
+                  }}>
+                    No players found for the selected criteria
+                  </div>
+                )}
               </div>
-              
-              {topPlayers.length === 0 && (
+            ) : (
+              /* Desktop Table Layout */
+              <div className="top-players-table" style={{
+                background: "white",
+                borderRadius: "15px",
+                overflow: "hidden",
+                boxShadow: "0 5px 15px rgba(0, 0, 0, 0.1)"
+              }}>
+                {/* Table Header */}
                 <div style={{
-                  padding: "40px",
+                  display: "grid",
+                  gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
+                  gap: "10px",
+                  padding: "15px",
+                  background: "linear-gradient(45deg, #512DA8, #4527A0)",
+                  color: "white",
+                  fontWeight: "bold",
+                  fontSize: "1em",
                   textAlign: "center",
-                  color: "#666",
-                  fontSize: "1.1em",
-                  fontStyle: "italic"
+                  alignItems: "center"
                 }}>
-                  No players found for the selected criteria
+                  <div>Rank</div>
+                  <div>Name</div>
+                  <div>Province</div>
+                  <div>Gender</div>
+                  <div>Rating</div>
+                  <div>Age</div>
+                  <div>Last Played</div>
                 </div>
-              )}
-            </div>
+                
+                {/* Table Rows */}
+                <div style={{ maxHeight: "600px", overflowY: "auto" }}>
+                  {topPlayers.map((player, index) => (
+                    <div
+                      key={`${player.name}-${player.rating}-${index}`}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
+                        gap: "10px",
+                        padding: "12px 15px",
+                        borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
+                        backgroundColor: index % 2 === 0 ? "#f9f9f9" : "white",
+                        fontSize: "0.95em",
+                        textAlign: "center",
+                        alignItems: "center",
+                        cursor: "pointer",
+                        transition: "background-color 0.2s ease"
+                      }}
+                      onMouseOver={(e) => {
+                        e.currentTarget.style.backgroundColor = "#EDE7F6";
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.backgroundColor = index % 2 === 0 ? "#f9f9f9" : "white";
+                      }}
+                      onClick={() => handleNameSelect(player.name)}
+                    >
+                      <div style={{
+                        fontWeight: "bold",
+                        color: player.rank <= 3 ? (player.rank === 1 ? "#FFD700" : player.rank === 2 ? "#C0C0C0" : "#CD7F32") : "#333",
+                        fontSize: player.rank <= 3 ? "1.1em" : "1em"
+                      }}>
+                        {player.rank <= 3 ? (player.rank === 1 ? "🥇" : player.rank === 2 ? "🥈" : "🥉") : `#${player.rank}`}
+                      </div>
+                      <div style={{ textAlign: "left", fontWeight: "500", color: "#4527A0" }}>
+                        {player.name}
+                      </div>
+                      <div style={{ color: "#666" }}>
+                        {player.province}
+                      </div>
+                      <div style={{ color: "#666" }}>
+                        {player.gender || 'N/A'}
+                      </div>
+                      <div style={{ fontWeight: "bold", color: "#1976D2" }}>
+                        {player.rating}
+                      </div>
+                      <div style={{ color: "#666" }}>
+                        {player.age || 'N/A'}
+                      </div>
+                      <div style={{ color: "#666", fontSize: "0.9em" }}>
+                        {player.lastPlayed}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {topPlayers.length === 0 && (
+                  <div style={{
+                    padding: "40px",
+                    textAlign: "center",
+                    color: "#666",
+                    fontSize: "1.1em",
+                    fontStyle: "italic"
+                  }}>
+                    No players found for the selected criteria
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
