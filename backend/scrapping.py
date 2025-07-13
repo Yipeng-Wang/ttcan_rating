@@ -12,6 +12,8 @@ from dotenv import load_dotenv
 from typing import List, Dict, Optional, Tuple
 import concurrent.futures
 from threading import Lock
+import json
+import tempfile
 
 # Load environment variables
 load_dotenv()
@@ -40,12 +42,12 @@ class ScraperConfig:
     MAX_RETRIES = 3
     REQUEST_TIMEOUT = 30
     PAGE_DELAY = 0.2
-    CONCURRENT_WORKERS = 10
+    CONCURRENT_WORKERS = 20
     HISTORY_CUTOFF_YEAR = 2010
     
     # Google Sheets constants
-    BATCH_SIZE = 100
-    BATCH_DELAY = 1
+    BATCH_SIZE = 5000  # Very large batch size for maximum upload efficiency
+    BATCH_DELAY = 2    # Increased delay between batches to respect rate limits
 
 class ScraperValidation:
     REQUIRED_FIELDS = ["Name", "Province", "Rating", "Period", "Last Played"]
@@ -390,53 +392,81 @@ def scrape_players_page(gender: str, page: int) -> List[Dict[str, str]]:
         logger.error(f"Error parsing page {page}: {e}")
         return []
 
-def scrape_all_players_by_gender(gender: str, max_pages: Optional[int] = None, fetch_history: bool = False) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
-    """Scrape all players of a specific gender."""
+def scrape_all_players_by_gender(gender: str, max_pages: Optional[int] = None, fetch_history: bool = False, 
+                                session_id: str = None, resume_from_page: int = 1) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """Scrape all players of a specific gender with resume capability."""
     all_players = []
     all_history = []
-    page = 1
+    page = resume_from_page
     
-    logger.info(f"Scraping {gender or 'all'} players...")
+    logger.info(f"Scraping {gender or 'all'} players starting from page {page}...")
+    
+    # Save progress every N pages to allow resuming
+    save_progress_every = 5
     
     while True:
-        if max_pages and page > max_pages:
-            logger.info(f"Reached max pages limit ({max_pages}), stopping.")
-            break
-        
-        logger.info(f"Fetching {gender or 'all'} page {page}...")
-        page_players = scrape_players_page(gender, page)
-        
-        if not page_players:
-            logger.info("No valid players found on this page. Stopping scraping.")
-            break
-        
-        # Extract players with links for data fetching
-        players_with_links = [
-            (player["Name"], player["PlayerLink"]) 
-            for player in page_players 
-            if player["PlayerLink"]
-        ]
-        
-        # Fetch ages and optionally history in one pass
-        if players_with_links:
-            if fetch_history:
-                logger.info(f"Fetching ages and history for {len(players_with_links)} {gender or 'all'} players concurrently...")
-                age_results, history_data = fetch_multiple_players_data(players_with_links, fetch_history=True)
-                all_history.extend(history_data)
-            else:
-                logger.info(f"Fetching ages for {len(players_with_links)} {gender or 'all'} players concurrently...")
-                age_results, _ = fetch_multiple_players_data(players_with_links, fetch_history=False)
+        try:
+            if max_pages and page > max_pages:
+                logger.info(f"Reached max pages limit ({max_pages}), stopping.")
+                break
             
-            # Update players with age data
-            for player in page_players:
-                if player["Name"] in age_results:
-                    player["Age"] = age_results[player["Name"]] or ""
-        
-        all_players.extend(page_players)
-        logger.info(f"Page {page}: {len(page_players)} valid players")
-        
-        page += 1
-        time.sleep(ScraperConfig.PAGE_DELAY)
+            logger.info(f"Fetching {gender or 'all'} page {page}...")
+            page_players = scrape_players_page(gender, page)
+            
+            if not page_players:
+                logger.info("No valid players found on this page. Stopping scraping.")
+                break
+            
+            # Extract players with links for data fetching
+            players_with_links = [
+                (player["Name"], player["PlayerLink"]) 
+                for player in page_players 
+                if player["PlayerLink"]
+            ]
+            
+            # Fetch ages and optionally history in one pass
+            if players_with_links:
+                if fetch_history:
+                    logger.info(f"Fetching ages and history for {len(players_with_links)} {gender or 'all'} players concurrently...")
+                    age_results, history_data = fetch_multiple_players_data(players_with_links, fetch_history=True)
+                    all_history.extend(history_data)
+                else:
+                    logger.info(f"Fetching ages for {len(players_with_links)} {gender or 'all'} players concurrently...")
+                    age_results, _ = fetch_multiple_players_data(players_with_links, fetch_history=False)
+                
+                # Update players with age data
+                for player in page_players:
+                    if player["Name"] in age_results:
+                        player["Age"] = age_results[player["Name"]] or ""
+            
+            all_players.extend(page_players)
+            logger.info(f"Page {page}: {len(page_players)} valid players (Total so far: {len(all_players)})")
+            
+            # Save progress periodically
+            if session_id and page % save_progress_every == 0:
+                save_progress_state(session_id, page, all_players, all_history)
+                update_temp_files_incremental(all_players, all_history, session_id)
+                logger.info(f"Progress checkpoint saved at page {page}")
+            
+            page += 1
+            time.sleep(ScraperConfig.PAGE_DELAY)
+            
+        except Exception as e:
+            logger.error(f"Error scraping page {page}: {e}")
+            
+            # Save progress before potentially failing
+            if session_id:
+                logger.info(f"Saving progress before handling error...")
+                save_progress_state(session_id, page - 1, all_players, all_history)
+                update_temp_files_incremental(all_players, all_history, session_id)
+            
+            # Re-raise the exception to be handled by the calling function
+            raise e
+    
+    # Save final progress
+    if session_id:
+        save_progress_state(session_id, page - 1, all_players, all_history)
+        update_temp_files_incremental(all_players, all_history, session_id)
     
     logger.info(f"Total {gender or 'all'} players found: {len(all_players)}")
     return all_players, all_history
@@ -467,12 +497,19 @@ def enrich_history_with_player_data(history_data: List[Dict[str, str]], players:
             history_entry["Gender"] = current_player.get("Gender", "")
             history_entry["Province"] = current_player.get("Province", "")
 
-def scrape_all_ttcan_players(fetch_all_history: bool = False) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
-    """Scrape all players and optionally fetch rating history for all players."""
-    logger.info("Starting to scrape all players...")
+def scrape_all_ttcan_players(fetch_all_history: bool = False, session_id: str = None, 
+                            resume_from_page: int = 1) -> Tuple[List[Dict[str, str]], List[Dict[str, str]]]:
+    """Scrape all players and optionally fetch rating history for all players with resume capability."""
+    if not session_id:
+        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     
-    # Scrape all players in one pass
-    all_players, all_history = scrape_all_players_by_gender('', max_pages=None, fetch_history=fetch_all_history)
+    logger.info(f"Starting to scrape all players... (Session: {session_id})")
+    
+    # Scrape all players in one pass with resume capability
+    all_players, all_history = scrape_all_players_by_gender('', max_pages=None, 
+                                                           fetch_history=fetch_all_history,
+                                                           session_id=session_id,
+                                                           resume_from_page=resume_from_page)
     
     # Deduplicate players
     unique_players = deduplicate_players(all_players)
@@ -485,28 +522,276 @@ def scrape_all_ttcan_players(fetch_all_history: bool = False) -> Tuple[List[Dict
     
     return unique_players, all_history
 
-# ==== GOOGLE SHEETS FUNCTIONS ====
-def write_to_sheet_in_batches(sheet_obj, rows: List[List[str]], header: List[str]) -> bool:
-    """Write data to Google Sheets in batches."""
+# ==== LOCAL FILE CACHING ====
+def save_data_to_temp_file(data: List[Dict], data_type: str, session_id: str = None) -> str:
+    """Save scraped data to a temporary file and return the file path."""
+    if session_id is None:
+        session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    filename = f"ttcan_{data_type}_{session_id}.json"
+    
+    # Create temp file in the same directory as the script
+    temp_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(temp_dir, filename)
+    
     try:
-        # Clear and add header
-        sheet_obj.clear()
-        sheet_obj.append_row(header)
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
         
-        # Write in batches
-        for i in range(0, len(rows), ScraperConfig.BATCH_SIZE):
-            batch = rows[i:i + ScraperConfig.BATCH_SIZE]
-            sheet_obj.append_rows(batch, value_input_option="RAW")
-            logger.info(f"Uploaded batch {i//ScraperConfig.BATCH_SIZE + 1}: {len(batch)} rows")
-            time.sleep(ScraperConfig.BATCH_DELAY)
-        
-        return True
+        logger.info(f"Saved {len(data)} {data_type} records to {filename}")
+        return file_path
+    
     except Exception as e:
-        logger.error(f"Error writing to Google Sheet: {e}")
-        return False
+        logger.error(f"Failed to save {data_type} data to file: {e}")
+        return None
 
-def write_players_to_sheet(players: List[Dict[str, str]]) -> bool:
-    """Write player data to Google Sheets."""
+def save_progress_state(session_id: str, last_page: int, completed_players: List[Dict], completed_history: List[Dict], 
+                       upload_state: Dict = None) -> str:
+    """Save current scraping and upload progress state."""
+    progress_data = {
+        "session_id": session_id,
+        "last_completed_page": last_page,
+        "timestamp": datetime.now().isoformat(),
+        "players_count": len(completed_players),
+        "history_count": len(completed_history),
+        "status": "in_progress",
+        "upload_state": upload_state or {}
+    }
+    
+    filename = f"ttcan_progress_{session_id}.json"
+    temp_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(temp_dir, filename)
+    
+    try:
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(progress_data, f, indent=2)
+        
+        logger.info(f"Progress saved: page {last_page}, {len(completed_players)} players, {len(completed_history)} history entries")
+        if upload_state:
+            logger.info(f"Upload state: {upload_state}")
+        return file_path
+    
+    except Exception as e:
+        logger.error(f"Failed to save progress state: {e}")
+        return None
+
+
+def load_progress_state(session_id: str = None) -> Dict:
+    """Load the most recent progress state."""
+    temp_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    try:
+        if session_id:
+            # Load specific session
+            progress_file = os.path.join(temp_dir, f"ttcan_progress_{session_id}.json")
+            if os.path.exists(progress_file):
+                with open(progress_file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        else:
+            # Find the most recent progress file
+            progress_files = [f for f in os.listdir(temp_dir) if f.startswith('ttcan_progress_') and f.endswith('.json')]
+            if progress_files:
+                latest_file = max(progress_files)
+                progress_file = os.path.join(temp_dir, latest_file)
+                with open(progress_file, 'r', encoding='utf-8') as f:
+                    progress_data = json.load(f)
+                    logger.info(f"Found previous session: {progress_data.get('session_id', 'unknown')}")
+                    return progress_data
+    
+    except Exception as e:
+        logger.error(f"Failed to load progress state: {e}")
+    
+    return {}
+
+def update_temp_files_incremental(players: List[Dict], history: List[Dict], session_id: str):
+    """Update temp files incrementally during scraping."""
+    try:
+        # Save current progress
+        players_file = save_data_to_temp_file(players, "players", session_id)
+        history_file = save_data_to_temp_file(history, "history", session_id) if history else None
+        
+        return players_file, history_file
+    except Exception as e:
+        logger.error(f"Failed to update temp files: {e}")
+        return None, None
+
+def load_data_from_temp_file(file_path: str, data_type: str) -> List[Dict]:
+    """Load data from a temporary file."""
+    try:
+        if not os.path.exists(file_path):
+            logger.warning(f"Temp file not found: {file_path}")
+            return []
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        logger.info(f"Loaded {len(data)} {data_type} records from {os.path.basename(file_path)}")
+        return data
+    
+    except Exception as e:
+        logger.error(f"Failed to load {data_type} data from file: {e}")
+        return []
+
+def cleanup_temp_files(*file_paths):
+    """Remove temporary files after successful upload."""
+    for file_path in file_paths:
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"Cleaned up temp file: {os.path.basename(file_path)}")
+            except Exception as e:
+                logger.warning(f"Failed to remove temp file {file_path}: {e}")
+
+def cleanup_session_files(session_id: str):
+    """Remove all files related to a specific session."""
+    if not session_id:
+        return
+    
+    temp_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    try:
+        # Find all files with this session ID
+        session_files = [
+            f for f in os.listdir(temp_dir) 
+            if f.endswith('.json') and session_id in f
+        ]
+        
+        for filename in session_files:
+            file_path = os.path.join(temp_dir, filename)
+            try:
+                os.remove(file_path)
+                logger.info(f"Cleaned up session file: {filename}")
+            except Exception as e:
+                logger.warning(f"Failed to remove session file {filename}: {e}")
+                
+    except Exception as e:
+        logger.error(f"Error during session cleanup: {e}")
+
+def find_latest_temp_files() -> Tuple[Optional[str], Optional[str]]:
+    """Find the most recent temp files for players and history."""
+    temp_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    players_file = None
+    history_file = None
+    
+    try:
+        # Find all temp files
+        temp_files = [f for f in os.listdir(temp_dir) if f.startswith('ttcan_') and f.endswith('.json')]
+        
+        # Find latest players file
+        players_files = [f for f in temp_files if 'players_' in f]
+        if players_files:
+            players_file = os.path.join(temp_dir, max(players_files))
+        
+        # Find latest history file
+        history_files = [f for f in temp_files if 'history_' in f]
+        if history_files:
+            history_file = os.path.join(temp_dir, max(history_files))
+        
+        if players_file:
+            logger.info(f"Found latest players file: {os.path.basename(players_file)}")
+        if history_file:
+            logger.info(f"Found latest history file: {os.path.basename(history_file)}")
+    
+    except Exception as e:
+        logger.error(f"Error finding temp files: {e}")
+    
+    return players_file, history_file
+
+# ==== GOOGLE SHEETS FUNCTIONS ====
+def handle_google_api_error(error) -> bool:
+    """Check if error is retryable (like 502, 503, rate limits)."""
+    error_str = str(error).lower()
+    
+    # Check for retryable HTTP errors
+    retryable_errors = [
+        '502', '503', '504',  # Server errors
+        'server error', 'temporarily unavailable',
+        'rate limit', 'quota exceeded',
+        'timeout', 'connection error',
+        'internal error',  # Google internal errors
+        'backend error',   # Google backend issues
+        'that\'s an error'  # The specific error from your log
+    ]
+    
+    # Non-retryable errors (authentication, permissions, etc.)
+    non_retryable = [
+        'authentication', 'unauthorized', '401', '403',
+        'not found', '404', 'permission denied'
+    ]
+    
+    # If it's explicitly non-retryable, return False
+    if any(err in error_str for err in non_retryable):
+        return False
+    
+    # Otherwise check if it's a retryable error
+    return any(err in error_str for err in retryable_errors)
+
+def write_to_sheet_with_retry(sheet_obj, rows: List[List[str]], header: List[str], max_retries: int = 3) -> bool:
+    """Write data to Google Sheets with retry logic for 502/503 errors."""
+    
+    total_batches = (len(rows) + ScraperConfig.BATCH_SIZE - 1) // ScraperConfig.BATCH_SIZE
+    
+    # Clear sheet and add header
+    sheet_obj.clear()
+    sheet_obj.append_row(header)
+    
+    for session_attempt in range(max_retries):
+        try:
+            logger.info(f"Attempting to write to Google Sheet (attempt {session_attempt + 1}/{max_retries})")
+            logger.info(f"📤 Starting upload - {total_batches} batches of {ScraperConfig.BATCH_SIZE} rows each")
+            
+            # Upload all batches
+            for batch_idx in range(total_batches):
+                start_idx = batch_idx * ScraperConfig.BATCH_SIZE
+                end_idx = min(start_idx + ScraperConfig.BATCH_SIZE, len(rows))
+                batch = rows[start_idx:end_idx]
+                
+                logger.info(f"📦 Uploading batch {batch_idx + 1}/{total_batches}: {len(batch)} rows (rows {start_idx + 1}-{end_idx})")
+                
+                batch_attempt = 0
+                batch_max_retries = 2
+                
+                while batch_attempt < batch_max_retries:
+                    try:
+                        sheet_obj.append_rows(batch, value_input_option="RAW")
+                        logger.info(f"✅ Batch {batch_idx + 1}/{total_batches} uploaded successfully")
+                        break
+                    except Exception as batch_error:
+                        batch_attempt += 1
+                        if handle_google_api_error(batch_error) and batch_attempt < batch_max_retries:
+                            wait_time = (2 ** batch_attempt) + 1
+                            logger.warning(f"⚠️  Batch {batch_idx + 1} failed (retry {batch_attempt}/{batch_max_retries}), retrying in {wait_time}s: {batch_error}")
+                            time.sleep(wait_time)
+                        else:
+                            logger.error(f"❌ Batch {batch_idx + 1} failed after {batch_max_retries} attempts: {batch_error}")
+                            raise batch_error
+                
+                time.sleep(ScraperConfig.BATCH_DELAY)
+            
+            logger.info(f"🎉 Upload completed successfully - {len(rows)} total rows uploaded")
+            return True
+            
+        except Exception as e:
+            if handle_google_api_error(e) and session_attempt < max_retries - 1:
+                wait_time = (2 ** session_attempt) * 5  # Exponential backoff: 5s, 10s, 20s
+                logger.warning(f"💥 Upload session {session_attempt + 1} failed, retrying entire session in {wait_time}s: {e}")
+                time.sleep(wait_time)
+                # Clear and re-add header for retry
+                sheet_obj.clear()
+                sheet_obj.append_row(header)
+            else:
+                logger.error(f"🔥 Upload failed permanently after {max_retries} session attempts: {e}")
+                return False
+    
+    return False
+
+def write_to_sheet_in_batches(sheet_obj, rows: List[List[str]], header: List[str]) -> bool:
+    """Write data to Google Sheets in batches with retry logic."""
+    return write_to_sheet_with_retry(sheet_obj, rows, header)
+
+def write_players_to_sheet(players: List[Dict[str, str]], session_id: str = None) -> bool:
+    """Write player data to Google Sheets with resumable upload."""
     if not players:
         logger.warning("No players to write to sheet")
         return False
@@ -517,7 +802,7 @@ def write_players_to_sheet(players: List[Dict[str, str]]) -> bool:
         for p in players
     ]
     
-    success = write_to_sheet_in_batches(sheet, rows, header)
+    success = write_to_sheet_with_retry(sheet, rows, header)
     
     if success:
         # Log gender distribution
@@ -530,8 +815,8 @@ def write_players_to_sheet(players: List[Dict[str, str]]) -> bool:
     
     return success
 
-def write_history_to_sheet(history_data: List[Dict[str, str]]) -> bool:
-    """Write rating history data to a separate Google Sheet."""
+def write_history_to_sheet(history_data: List[Dict[str, str]], session_id: str = None) -> bool:
+    """Write rating history data to a separate Google Sheet with resumable upload."""
     if not history_data:
         logger.warning("No history data to write to sheet")
         return False
@@ -552,7 +837,7 @@ def write_history_to_sheet(history_data: List[Dict[str, str]]) -> bool:
             for entry in history_data
         ]
         
-        success = write_to_sheet_in_batches(history_sheet, rows, header)
+        success = write_to_sheet_with_retry(history_sheet, rows, header)
         
         if success:
             logger.info(f"Successfully uploaded {len(rows)} history entries to RatingHistory sheet")
@@ -566,33 +851,213 @@ def write_history_to_sheet(history_data: List[Dict[str, str]]) -> bool:
 
 # ==== MAIN EXECUTION ====
 if __name__ == "__main__":
+    players_temp_file = None
+    history_temp_file = None
+    
     try:
-        # Check command line arguments for history fetching
+        # Check command line arguments
         fetch_history = "--history" in sys.argv
+        use_cache = "--use-cache" in sys.argv
+        resume = "--resume" in sys.argv
         
-        players, history = scrape_all_ttcan_players(fetch_all_history=fetch_history)
+        # Show upload status if requested
+        if "--status" in sys.argv:
+            progress_state = load_progress_state()
+            if progress_state:
+                session_id = progress_state.get("session_id")
+                print(f"\nSession: {session_id}")
+                print(f"Last updated: {progress_state.get('timestamp', 'Unknown')}")
+                print(f"Scraping status: {progress_state.get('status', 'Unknown')}")
+                print(f"Players: {progress_state.get('players_count', 0)}")
+                print(f"History entries: {progress_state.get('history_count', 0)}")
+                
+                upload_state = progress_state.get("upload_state", {})
+                if upload_state:
+                    print("\nUpload Status:")
+                    for upload_type, state in upload_state.items():
+                        status = state.get("status", "unknown")
+                        completed = state.get("completed_batches", 0)
+                        total = state.get("total_batches", 0)
+                        percentage = (completed / total * 100) if total > 0 else 0
+                        print(f"  {upload_type.capitalize()}: {status} ({completed}/{total} batches, {percentage:.1f}%)")
+                else:
+                    print("No upload status available")
+            else:
+                print("No session found")
+            sys.exit(0)
+        
+        # Show help if requested
+        if "--help" in sys.argv or "-h" in sys.argv:
+            print("""
+TTCan Rating Scraper
+
+Usage:
+  python scrapping.py                    # Scrape current players only
+  python scrapping.py --history          # Scrape players + rating history
+  python scrapping.py --use-cache        # Use cached data instead of re-scraping
+  python scrapping.py --resume           # Resume from last interrupted scraping session
+  python scrapping.py --status           # Show current session and upload status
+
+Options:
+  --history      Fetch rating history for all players (slower)
+  --use-cache    Use previously cached data instead of re-scraping
+  --resume       Resume from the last interrupted scraping session
+  --status       Show progress and upload status of current session
+  --help, -h     Show this help message
+
+Examples:
+  # Normal run (players only)
+  python scrapping.py
+  
+  # Full run with history
+  python scrapping.py --history
+  
+  # Check current session status
+  python scrapping.py --status
+  
+  # Retry upload after Google Sheets failure (resumes from failed batch)
+  python scrapping.py --use-cache
+  
+  # Resume interrupted scraping session
+  python scrapping.py --resume
+  
+  # Resume interrupted scraping with history
+  python scrapping.py --history --resume
+            """)
+            sys.exit(0)
+        
+        players = []
+        history = []
+        session_id = None
+        resume_from_page = 1
+        
+        if resume:
+            # Try to resume from previous session
+            logger.info("Attempting to resume from previous session...")
+            progress_state = load_progress_state()
+            
+            if progress_state:
+                session_id = progress_state.get("session_id")
+                resume_from_page = progress_state.get("last_completed_page", 1) + 1
+                
+                # Load existing data from the session
+                players_temp_file, history_temp_file = find_latest_temp_files()
+                if players_temp_file and session_id in players_temp_file:
+                    players = load_data_from_temp_file(players_temp_file, "players")
+                
+                if fetch_history and history_temp_file and session_id in history_temp_file:
+                    history = load_data_from_temp_file(history_temp_file, "history")
+                
+                logger.info(f"Resuming session {session_id} from page {resume_from_page}")
+                logger.info(f"Already have {len(players)} players and {len(history)} history entries")
+            else:
+                logger.warning("No previous session found to resume, starting fresh")
+                resume = False
+        
+        if use_cache and not resume:
+            # Try to load from existing temp files
+            logger.info("Attempting to use cached data...")
+            players_temp_file, history_temp_file = find_latest_temp_files()
+            
+            if players_temp_file:
+                players = load_data_from_temp_file(players_temp_file, "players")
+                # Extract session_id from filename for resumable uploads
+                import re
+                match = re.search(r'ttcan_players_(\d{8}_\d{6})\.json', players_temp_file)
+                if match:
+                    session_id = match.group(1)
+            
+            if fetch_history and history_temp_file:
+                history = load_data_from_temp_file(history_temp_file, "history")
+            
+            if not players:
+                logger.warning("No valid cached player data found, will scrape fresh data")
+                use_cache = False
+        
+        if not use_cache and not resume:
+            # Scrape fresh data from TTCan
+            logger.info("Scraping fresh data from TTCan...")
+            session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+            players, history = scrape_all_ttcan_players(fetch_all_history=fetch_history, session_id=session_id)
+            
+            # Save to temp files immediately after scraping
+            if players:
+                players_temp_file = save_data_to_temp_file(players, "players", session_id)
+                
+            if history:
+                history_temp_file = save_data_to_temp_file(history, "history", session_id)
+        
+        elif resume:
+            # Continue scraping from where we left off
+            logger.info(f"Continuing scraping from page {resume_from_page}...")
+            try:
+                new_players, new_history = scrape_all_ttcan_players(
+                    fetch_all_history=fetch_history, 
+                    session_id=session_id, 
+                    resume_from_page=resume_from_page
+                )
+                
+                # Merge new data with existing data
+                players.extend(new_players)
+                history.extend(new_history)
+                
+                # Save updated data
+                players_temp_file = save_data_to_temp_file(players, "players", session_id)
+                if history:
+                    history_temp_file = save_data_to_temp_file(history, "history", session_id)
+                
+                logger.info(f"Resume completed. Total: {len(players)} players, {len(history)} history entries")
+                
+            except Exception as e:
+                logger.error(f"Error during resume: {e}")
+                logger.info("Progress has been saved. You can try to resume again later.")
+                raise
         
         if players:
-            success = write_players_to_sheet(players)
+            # Attempt to upload to Google Sheets
+            logger.info("Uploading player data to Google Sheets...")
+            success = write_players_to_sheet(players, session_id=session_id)
+            
             if success:
                 logger.info("Player data uploaded successfully")
                 
                 # If we have history data, upload it too
                 if history:
-                    history_success = write_history_to_sheet(history)
+                    logger.info("Uploading rating history to Google Sheets...")
+                    history_success = write_history_to_sheet(history, session_id=session_id)
                     if history_success:
                         logger.info("Rating history uploaded successfully")
+                        
+                        # Clean up all session files after successful upload
+                        cleanup_session_files(session_id)
                     else:
-                        logger.warning("Failed to upload rating history")
+                        logger.warning("Failed to upload rating history - temp files preserved for retry")
+                        logger.info("Use --use-cache to retry history upload without re-scraping")
+                else:
+                    # Clean up all session files if no history to upload
+                    cleanup_session_files(session_id)
                 
-                logger.info("Scraping completed successfully")
+                logger.info("Scraping and upload completed successfully")
             else:
-                logger.error("Failed to write data to Google Sheet")
+                logger.error("Failed to write player data to Google Sheet")
+                logger.info(f"Data preserved in temp files for retry:")
+                if players_temp_file:
+                    logger.info(f"  Players: {os.path.basename(players_temp_file)}")
+                if history_temp_file:
+                    logger.info(f"  History: {os.path.basename(history_temp_file)}")
+                logger.info("Commands to retry:")
+                logger.info("  --use-cache          # Retry upload (resumes from failed batch)")
+                logger.info("  --status             # Check upload progress")
                 sys.exit(1)
         else:
             logger.warning("No players found to upload")
+            
     except KeyboardInterrupt:
         logger.info("Scraping interrupted by user")
+        if players_temp_file or history_temp_file:
+            logger.info("Temp files preserved - use --use-cache to retry upload")
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
+        if players_temp_file or history_temp_file:
+            logger.info("Temp files preserved - use --use-cache to retry upload")
         sys.exit(1)

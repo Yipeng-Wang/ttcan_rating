@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 // ====== CONFIGURATION ======
 const SHEET_ID = process.env.REACT_APP_GOOGLE_SHEET_ID;
@@ -98,6 +98,192 @@ const useWindowSize = () => {
 
 const isMobile = (width) => width <= 768;
 const isTablet = (width) => width > 768 && width <= 1024;
+
+// Memoized Rating History Chart Component for better performance
+const RatingHistoryChart = React.memo(({ 
+  playerHistory, 
+  playerName, 
+  windowSize, 
+  historyLoading 
+}) => {
+  // Memoize chart configuration to prevent recreation on every render
+  const chartConfig = useMemo(() => ({
+    margin: isMobile(windowSize.width) ? {
+      top: 10,
+      right: 10,
+      left: 5,
+      bottom: 60,
+    } : {
+      top: 5,
+      right: 30,
+      left: 20,
+      bottom: 5,
+    },
+    height: isMobile(windowSize.width) ? "320px" : "450px"
+  }), [windowSize.width]);
+
+  // Memoize tick formatter to prevent function recreation
+  const tickFormatter = useCallback((value) => {
+    if (!value) return '';
+    
+    // If it looks like YYYY-MM format
+    if (/^\d{4}-\d{2}$/.test(value)) {
+      const [year, month] = value.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      // Mobile: shorter format
+      if (isMobile(windowSize.width)) {
+        return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      }
+      return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+    
+    // If it's a numeric period
+    if (/^\d+$/.test(value)) {
+      return isMobile(windowSize.width) ? `P${value}` : `Period ${value}`;
+    }
+    
+    return value;
+  }, [windowSize.width]);
+
+  // Memoize tooltip formatter
+  const tooltipLabelFormatter = useCallback((value) => {
+    if (!value) return 'Period: Unknown';
+    
+    if (/^\d{4}-\d{2}$/.test(value)) {
+      const [year, month] = value.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return `Period: ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+    }
+    
+    if (/^\d+$/.test(value)) {
+      return `Period: ${value}`;
+    }
+    
+    return `Period: ${value}`;
+  }, []);
+
+  if (historyLoading) {
+    return (
+      <div style={{ 
+        textAlign: "center", 
+        padding: "40px",
+        color: "#1976D2",
+        fontSize: isMobile(windowSize.width) ? "1em" : "1.1em"
+      }}>
+        Loading rating history...
+      </div>
+    );
+  }
+
+  if (playerHistory.length === 0) {
+    return (
+      <div style={{
+        textAlign: "center",
+        padding: "40px",
+        color: "#757575",
+        fontSize: isMobile(windowSize.width) ? "1em" : "1.1em"
+      }}>
+        No rating history available for {playerName}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ 
+      height: chartConfig.height,
+      width: "100%",
+      position: 'relative',
+      overflow: 'visible'
+    }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart
+          data={playerHistory}
+          margin={chartConfig.margin}
+        >
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis 
+            dataKey="period"
+            tick={{ 
+              fontSize: isMobile(windowSize.width) ? 8 : 12,
+              fill: '#1976D2'
+            }}
+            interval={isMobile(windowSize.width) ? Math.max(0, Math.floor(playerHistory.length / 3)) : Math.max(0, Math.floor(playerHistory.length / 8))}
+            angle={isMobile(windowSize.width) ? -50 : 0}
+            textAnchor={isMobile(windowSize.width) ? 'end' : 'middle'}
+            height={isMobile(windowSize.width) ? 70 : 30}
+            axisLine={{ stroke: '#1976D2', strokeWidth: 2 }}
+            tickLine={{ stroke: '#1976D2', strokeWidth: 1 }}
+            tickFormatter={tickFormatter}
+          />
+          <YAxis 
+            tick={{ 
+              fontSize: isMobile(windowSize.width) ? 9 : 12,
+              fill: '#1976D2'
+            }}
+            domain={['dataMin - 50', 'dataMax + 50']}
+            width={isMobile(windowSize.width) ? 45 : 60}
+            axisLine={{ stroke: '#1976D2', strokeWidth: 2 }}
+            tickLine={{ stroke: '#1976D2', strokeWidth: 1 }}
+            label={isMobile(windowSize.width) ? undefined : { 
+              value: 'Rating', 
+              angle: -90, 
+              position: 'insideLeft',
+              style: { textAnchor: 'middle', fill: '#1976D2', fontWeight: 'bold' }
+            }}
+          />
+          <Tooltip 
+            labelFormatter={tooltipLabelFormatter}
+            formatter={(value, name) => [value, 'Rating']}
+            contentStyle={{
+              backgroundColor: 'rgba(255, 255, 255, 0.98)',
+              border: '2px solid #2196F3',
+              borderRadius: isMobile(windowSize.width) ? '12px' : '8px',
+              fontSize: isMobile(windowSize.width) ? '13px' : '14px',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+              padding: isMobile(windowSize.width) ? '12px' : '8px',
+              minWidth: isMobile(windowSize.width) ? '120px' : 'auto'
+            }}
+            labelStyle={{
+              color: '#1976D2',
+              fontWeight: 'bold'
+            }}
+            itemStyle={{
+              color: '#1976D2'
+            }}
+            cursor={{
+              stroke: '#2196F3',
+              strokeWidth: 2,
+              strokeDasharray: '5 5'
+            }}
+          />
+          <Legend />
+          <Line 
+            type="monotone" 
+            dataKey="rating"
+            stroke="#2196F3"
+            strokeWidth={isMobile(windowSize.width) ? 3 : 2}
+            dot={{
+              fill: '#1976D2',
+              strokeWidth: 2,
+              stroke: '#fff',
+              r: isMobile(windowSize.width) ? 5 : 4
+            }}
+            activeDot={{
+              r: isMobile(windowSize.width) ? 8 : 6,
+              fill: '#FF6B35',
+              stroke: '#fff',
+              strokeWidth: 2,
+              drop: true
+            }}
+            connectNulls={false}
+            name={playerName}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+});
 
 function App() {
   const [months, setMonths] = useState('');
@@ -427,7 +613,7 @@ function App() {
     // The useEffect will handle recalculating player info with the new filter values
   };
 
-  // Fetch player rating history
+  // Fetch player rating history with performance optimizations
   const fetchPlayerHistory = async (selectedPlayerName) => {
     if (!selectedPlayerName || !selectedPlayerName.trim()) return;
     
@@ -435,12 +621,13 @@ function App() {
     setShowHistory(true);
     
     try {
-      // Check cache first (5-minute expiration)
+      // Check cache first (10-minute expiration for better mobile performance)
       const cacheKey = selectedPlayerName.toLowerCase();
       const now = Date.now();
-      if (historyCache.has(cacheKey) && (now - lastHistoryFetch) < 5 * 60 * 1000) {
+      if (historyCache.has(cacheKey) && (now - lastHistoryFetch) < 10 * 60 * 1000) {
         const cachedData = historyCache.get(cacheKey);
         setPlayerHistory(cachedData);
+        setHistoryLoading(false);
         return;
       }
       
@@ -465,8 +652,30 @@ function App() {
         }))
         .filter(entry => entry.rating > 0)
         .sort((a, b) => {
-          // Sort by period string - this will work for formats like "2024-01", "2024-02", etc.
-          return a.period.localeCompare(b.period);
+          // Convert period to date for proper chronological sorting
+          // Handle formats like "2024-01", "412", or other period formats
+          const parseDate = (period) => {
+            if (!period) return new Date(0);
+            
+            // If it looks like YYYY-MM format
+            if (/^\d{4}-\d{2}$/.test(period)) {
+              return new Date(period + '-01');
+            }
+            
+            // If it's a numeric period ID, treat as is for now
+            if (/^\d+$/.test(period)) {
+              return new Date(parseInt(period) * 86400000); // Convert to milliseconds for sorting
+            }
+            
+            // Try to parse as date directly
+            const date = new Date(period);
+            return isNaN(date.getTime()) ? new Date(0) : date;
+          };
+          
+          const dateA = parseDate(a.period);
+          const dateB = parseDate(b.period);
+          
+          return dateA.getTime() - dateB.getTime();
         });
       
       // Update cache
@@ -1299,83 +1508,12 @@ function App() {
                 {isMobile(windowSize.width) ? "Rating History" : "📈 Rating History"} - {playerName}
               </h2>
               
-              {historyLoading ? (
-                <div style={{ 
-                  textAlign: "center", 
-                  padding: "40px",
-                  color: "#1976D2",
-                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em"
-                }}>
-                  Loading rating history...
-                </div>
-              ) : playerHistory.length > 0 ? (
-                <div style={{ 
-                  height: isMobile(windowSize.width) ? "350px" : "450px",
-                  width: "100%"
-                }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={playerHistory}
-                      margin={isMobile(windowSize.width) ? {
-                        top: 5,
-                        right: 15,
-                        left: 10,
-                        bottom: 5,
-                      } : {
-                        top: 5,
-                        right: 30,
-                        left: 20,
-                        bottom: 5,
-                      }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="period"
-                        tick={{ fontSize: isMobile(windowSize.width) ? 9 : 12 }}
-                        interval={isMobile(windowSize.width) ? Math.max(0, Math.floor(playerHistory.length / 4)) : Math.max(0, Math.floor(playerHistory.length / 8))}
-                        angle={isMobile(windowSize.width) ? -45 : 0}
-                        textAnchor={isMobile(windowSize.width) ? 'end' : 'middle'}
-                        height={isMobile(windowSize.width) ? 60 : 30}
-                      />
-                      <YAxis 
-                        tick={{ fontSize: isMobile(windowSize.width) ? 9 : 12 }}
-                        domain={['dataMin - 50', 'dataMax + 50']}
-                        width={isMobile(windowSize.width) ? 50 : 60}
-                      />
-                      <Tooltip 
-                        labelFormatter={(value) => `Period: ${value}`}
-                        contentStyle={{
-                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                          border: '1px solid #2196F3',
-                          borderRadius: '8px',
-                          fontSize: isMobile(windowSize.width) ? '12px' : '14px'
-                        }}
-                      />
-                      <Legend />
-                      <Line 
-                        type="monotone" 
-                        dataKey="rating" 
-                        stroke="#2196F3" 
-                        strokeWidth={3}
-                        dot={{ fill: '#1976D2', strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, stroke: '#1976D2', strokeWidth: 2 }}
-                        name={playerName}
-                        connectNulls={true}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              ) : (
-                <div style={{
-                  textAlign: "center",
-                  padding: "40px",
-                  color: "#666",
-                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em",
-                  fontStyle: "italic"
-                }}>
-                  No rating history available for {playerName}
-                </div>
-              )}
+              <RatingHistoryChart 
+                playerHistory={playerHistory}
+                playerName={playerName}
+                windowSize={windowSize}
+                historyLoading={historyLoading}
+              />
               
             </div>
           )}
