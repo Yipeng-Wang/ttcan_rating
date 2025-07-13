@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 // ====== CONFIGURATION ======
 const SHEET_ID = process.env.REACT_APP_GOOGLE_SHEET_ID;
 const SHEET_NAME = process.env.REACT_APP_GOOGLE_SHEET_NAME || "Sheet1";
 const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
 const SHEET_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
+const HISTORY_SHEET_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/RatingHistory?key=${API_KEY}`;
 
 function validatePlayerData(player) {
   return (
@@ -114,6 +116,13 @@ function App() {
   const [provinceCounts, setProvinceCounts] = useState({});
   const [topPlayers, setTopPlayers] = useState([]);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  
+  // Rating history and comparison states
+  const [playerHistory, setPlayerHistory] = useState([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyCache, setHistoryCache] = useState(new Map());
+  const [lastHistoryFetch, setLastHistoryFetch] = useState(0);
 
   useEffect(() => {
     if (!SHEET_ID || !API_KEY) {
@@ -412,8 +421,68 @@ function App() {
       }
     }
     
+    // Fetch rating history for the selected player
+    fetchPlayerHistory(name);
+    
     // The useEffect will handle recalculating player info with the new filter values
   };
+
+  // Fetch player rating history
+  const fetchPlayerHistory = async (selectedPlayerName) => {
+    if (!selectedPlayerName || !selectedPlayerName.trim()) return;
+    
+    setHistoryLoading(true);
+    setShowHistory(true);
+    
+    try {
+      // Check cache first (5-minute expiration)
+      const cacheKey = selectedPlayerName.toLowerCase();
+      const now = Date.now();
+      if (historyCache.has(cacheKey) && (now - lastHistoryFetch) < 5 * 60 * 1000) {
+        const cachedData = historyCache.get(cacheKey);
+        setPlayerHistory(cachedData);
+        return;
+      }
+      
+      const response = await fetch(HISTORY_SHEET_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const json = await response.json();
+      if (!json.values || !Array.isArray(json.values)) {
+        throw new Error('Invalid rating history data format');
+      }
+      
+      // Parse rating history data - expecting format: [PlayerName, Period, Rating, LastPlayed, Gender, Province]
+      const rows = json.values.slice(1); // skip header
+      const playerData = rows
+        .filter(row => row && row.length >= 3 && row[0] && row[0].toLowerCase() === selectedPlayerName.toLowerCase())
+        .map(row => ({
+          period: row[1] || '',
+          rating: parseInt(row[2], 10) || 0,
+          lastPlayed: row[3] || ''
+        }))
+        .filter(entry => entry.rating > 0)
+        .sort((a, b) => {
+          // Sort by period string - this will work for formats like "2024-01", "2024-02", etc.
+          return a.period.localeCompare(b.period);
+        });
+      
+      // Update cache
+      setHistoryCache(prev => new Map(prev.set(cacheKey, playerData)));
+      setLastHistoryFetch(now);
+      
+      setPlayerHistory(playerData);
+      
+    } catch (error) {
+      console.error('Error fetching player history:', error);
+      setError(`Failed to load rating history: ${error.message}`);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
 
 
   if (loading) {
@@ -575,7 +644,7 @@ function App() {
         margin: "0 auto",
         position: "relative",
         zIndex: 2,
-        padding: isMobile(windowSize.width) ? "8px" : "20px"
+        padding: isMobile(windowSize.width) ? "12px" : "20px"
       }}>
         <div className="content-card" style={{
           background: "rgba(255, 255, 255, 0.95)",
@@ -1090,46 +1159,51 @@ function App() {
                 {/* Table Header */}
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
-                  gap: "10px",
-                  padding: "15px",
+                  gridTemplateColumns: isMobile(windowSize.width) 
+                    ? "50px 2fr 80px 100px" // Mobile: Rank, Name, Rating, Last Played only
+                    : "60px 2fr 1fr 80px 100px 80px 120px", // Desktop: all columns
+                  gap: isMobile(windowSize.width) ? "8px" : "10px",
+                  padding: isMobile(windowSize.width) ? "12px 8px" : "15px",
                   background: "linear-gradient(45deg, #512DA8, #4527A0)",
                   color: "white",
                   fontWeight: "bold",
-                  fontSize: "1em",
+                  fontSize: isMobile(windowSize.width) ? "0.9em" : "1em",
                   textAlign: "center",
                   alignItems: "center"
                 }}>
                   <div>Rank</div>
                   <div>Name</div>
-                  <div>Province</div>
-                  <div>Gender</div>
+                  {!isMobile(windowSize.width) && <div>Province</div>}
+                  {!isMobile(windowSize.width) && <div>Gender</div>}
                   <div>Rating</div>
-                  <div>Age</div>
+                  {!isMobile(windowSize.width) && <div>Age</div>}
                   <div>Last Played</div>
                 </div>
                 
                 {/* Table Rows */}
-                <div style={{ maxHeight: "600px", overflowY: "auto" }}>
+                <div className="table-container" style={{ maxHeight: isMobile(windowSize.width) ? "400px" : "600px", overflowY: "auto" }}>
                   {topPlayers.map((player, index) => (
                     <div
                       key={`${player.name}-${player.rating}-${index}`}
                       data-player-name={player.name}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "60px 2fr 1fr 80px 100px 80px 120px",
-                        gap: "10px",
-                        padding: "12px 15px",
+                        gridTemplateColumns: isMobile(windowSize.width) 
+                          ? "50px 2fr 80px 100px" // Mobile: Rank, Name, Rating, Last Played only
+                          : "60px 2fr 1fr 80px 100px 80px 120px", // Desktop: all columns
+                        gap: isMobile(windowSize.width) ? "8px" : "10px",
+                        padding: isMobile(windowSize.width) ? "12px 8px" : "12px 15px",
                         borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
                         backgroundColor: player.name === playerName ? "#E3F2FD" : (index % 2 === 0 ? "#f9f9f9" : "white"),
-                        fontSize: "0.95em",
+                        fontSize: isMobile(windowSize.width) ? "0.85em" : "0.95em",
                         textAlign: "center",
                         alignItems: "center",
                         cursor: "pointer",
                         transition: "background-color 0.2s ease",
                         border: player.name === playerName ? "2px solid #2196F3" : "none",
                         borderRadius: player.name === playerName ? "8px" : "0",
-                        margin: player.name === playerName ? "2px" : "0"
+                        margin: player.name === playerName ? "2px" : "0",
+                        minHeight: isMobile(windowSize.width) ? "48px" : "auto" // Better touch target
                       }}
                       onMouseOver={(e) => {
                         if (player.name !== playerName) {
@@ -1153,22 +1227,37 @@ function App() {
                         {player.rank <= 3 ? (player.rank === 1 ? "🥇" : player.rank === 2 ? "🥈" : "🥉") : `#${player.rank}`}
                       </div>
                       <div style={{ textAlign: "left", fontWeight: "500", color: "#4527A0" }}>
-                        {player.name}
+                        {isMobile(windowSize.width) ? (
+                          <div>
+                            <div>{player.name}</div>
+                            <div style={{ fontSize: "0.75em", color: "#666", marginTop: "2px" }}>
+                              {player.province} • {player.gender || 'N/A'} • Age {player.age || 'N/A'}
+                            </div>
+                          </div>
+                        ) : (
+                          player.name
+                        )}
                       </div>
-                      <div style={{ color: "#666" }}>
-                        {player.province}
-                      </div>
-                      <div style={{ color: "#666" }}>
-                        {player.gender || 'N/A'}
-                      </div>
+                      {!isMobile(windowSize.width) && (
+                        <div style={{ color: "#666" }}>
+                          {player.province}
+                        </div>
+                      )}
+                      {!isMobile(windowSize.width) && (
+                        <div style={{ color: "#666" }}>
+                          {player.gender || 'N/A'}
+                        </div>
+                      )}
                       <div style={{ fontWeight: "bold", color: "#1976D2" }}>
                         {player.rating}
                       </div>
-                      <div style={{ color: "#666" }}>
-                        {player.age || 'N/A'}
-                      </div>
-                      <div style={{ color: "#666", fontSize: "0.9em" }}>
-                        {player.lastPlayed}
+                      {!isMobile(windowSize.width) && (
+                        <div style={{ color: "#666" }}>
+                          {player.age || 'N/A'}
+                        </div>
+                      )}
+                      <div style={{ color: "#666", fontSize: isMobile(windowSize.width) ? "0.75em" : "0.9em" }}>
+                        {isMobile(windowSize.width) ? player.lastPlayed.replace(/(\d{1,2})\/(\d{1,2})\/(\d{4})/, '$1/$2') : player.lastPlayed}
                       </div>
                     </div>
                   ))}
@@ -1188,6 +1277,108 @@ function App() {
               </div>
             )}
           </div>
+
+
+          {/* Rating History Chart */}
+          {showHistory && (
+            <div className="rating-history-section" style={{
+              background: "linear-gradient(45deg, #f0f7ff, #e3f2fd)",
+              borderRadius: isMobile(windowSize.width) ? "12px" : "20px",
+              padding: isMobile(windowSize.width) ? "16px" : "25px",
+              marginTop: isMobile(windowSize.width) ? "20px" : "30px",
+              border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
+              boxShadow: "0 10px 25px rgba(33, 150, 243, 0.2)"
+            }}>
+              <h2 style={{
+                textAlign: "center",
+                color: "#1976D2",
+                fontSize: isMobile(windowSize.width) ? "1.4em" : "1.8em",
+                marginBottom: isMobile(windowSize.width) ? "16px" : "20px",
+                textShadow: "2px 2px 4px rgba(25, 118, 210, 0.3)"
+              }}>
+                {isMobile(windowSize.width) ? "Rating History" : "📈 Rating History"} - {playerName}
+              </h2>
+              
+              {historyLoading ? (
+                <div style={{ 
+                  textAlign: "center", 
+                  padding: "40px",
+                  color: "#1976D2",
+                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em"
+                }}>
+                  Loading rating history...
+                </div>
+              ) : playerHistory.length > 0 ? (
+                <div style={{ 
+                  height: isMobile(windowSize.width) ? "350px" : "450px",
+                  width: "100%"
+                }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={playerHistory}
+                      margin={isMobile(windowSize.width) ? {
+                        top: 5,
+                        right: 15,
+                        left: 10,
+                        bottom: 5,
+                      } : {
+                        top: 5,
+                        right: 30,
+                        left: 20,
+                        bottom: 5,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="period"
+                        tick={{ fontSize: isMobile(windowSize.width) ? 9 : 12 }}
+                        interval={isMobile(windowSize.width) ? Math.max(0, Math.floor(playerHistory.length / 4)) : Math.max(0, Math.floor(playerHistory.length / 8))}
+                        angle={isMobile(windowSize.width) ? -45 : 0}
+                        textAnchor={isMobile(windowSize.width) ? 'end' : 'middle'}
+                        height={isMobile(windowSize.width) ? 60 : 30}
+                      />
+                      <YAxis 
+                        tick={{ fontSize: isMobile(windowSize.width) ? 9 : 12 }}
+                        domain={['dataMin - 50', 'dataMax + 50']}
+                        width={isMobile(windowSize.width) ? 50 : 60}
+                      />
+                      <Tooltip 
+                        labelFormatter={(value) => `Period: ${value}`}
+                        contentStyle={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                          border: '1px solid #2196F3',
+                          borderRadius: '8px',
+                          fontSize: isMobile(windowSize.width) ? '12px' : '14px'
+                        }}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="rating" 
+                        stroke="#2196F3" 
+                        strokeWidth={3}
+                        dot={{ fill: '#1976D2', strokeWidth: 2, r: 4 }}
+                        activeDot={{ r: 6, stroke: '#1976D2', strokeWidth: 2 }}
+                        name={playerName}
+                        connectNulls={true}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div style={{
+                  textAlign: "center",
+                  padding: "40px",
+                  color: "#666",
+                  fontSize: isMobile(windowSize.width) ? "1em" : "1.1em",
+                  fontStyle: "italic"
+                }}>
+                  No rating history available for {playerName}
+                </div>
+              )}
+              
+            </div>
+          )}
         </div>
       </div>
     </div>
