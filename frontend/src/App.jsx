@@ -484,9 +484,14 @@ function App() {
         filteredData = filteredData.filter(player => player.gender === selectedGender);
       }
       
-      // Sort by last played date (most recent first), then by rating (highest first)
+      // Sort by rating first (highest first), then by last played date (most recent first)
       const sorted = filteredData.sort((a, b) => {
-        // Parse dates - assuming format like "MM/DD/YYYY" or "MM-DD-YYYY"
+        // First sort by rating (highest first)
+        if (a.rating !== b.rating) {
+          return b.rating - a.rating;
+        }
+        
+        // If ratings are equal, sort by last played date (most recent first)
         const parseDate = (dateStr) => {
           if (!dateStr) return new Date(0); // Very old date for missing dates
           const parts = dateStr.split(/[\/\-]/);
@@ -499,12 +504,7 @@ function App() {
         const dateA = parseDate(a.lastPlayed);
         const dateB = parseDate(b.lastPlayed);
         
-        // First sort by date (newest first)
-        if (dateA > dateB) return -1;
-        if (dateA < dateB) return 1;
-        
-        // If dates are equal, sort by rating (highest first)
-        return b.rating - a.rating;
+        return dateB.getTime() - dateA.getTime(); // Most recent first
       });
       
       const filtered = sorted
@@ -1035,11 +1035,12 @@ function App() {
                             borderBottom: index < filteredNames.length - 1 ? "1px solid #e8e8e8" : "none",
                             color: "#444444",
                             fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
-                            backgroundColor: selectedSuggestionIndex === index ? "#e8f5e8" : "white",
+                            backgroundColor: selectedSuggestionIndex === index ? "#e3f2fd" : "white",
                             fontSize: isMobile(windowSize.width) ? "16px" : "1em", // Prevent zoom on iOS
                             minHeight: isMobile(windowSize.width) ? "44px" : "auto", // iOS recommended touch target
                             display: "flex",
-                            alignItems: "center"
+                            alignItems: "center",
+                            transition: "background-color 0.2s ease"
                           }}
                           onMouseDown={() => handleNameSelect(name)}
                           onMouseEnter={() => setSelectedSuggestionIndex(index)}
