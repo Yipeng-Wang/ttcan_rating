@@ -104,7 +104,12 @@ const RatingHistoryChart = React.memo(({
   playerHistory, 
   playerName, 
   windowSize, 
-  historyLoading 
+  historyLoading,
+  comparePlayerHistory,
+  comparePlayerName,
+  compareHistoryLoading,
+  startCompareYear,
+  startCompareMonth
 }) => {
   // Memoize chart configuration to prevent recreation on every render
   const chartConfig = useMemo(() => ({
@@ -121,6 +126,163 @@ const RatingHistoryChart = React.memo(({
     },
     height: isMobile(windowSize.width) ? "320px" : "450px"
   }), [windowSize.width]);
+
+  // Merge player histories into a single dataset for the chart
+  const chartData = useMemo(() => {
+    // If no main player is selected, return empty data
+    if (!playerName || playerHistory.length === 0) {
+      return [];
+    }
+    
+    if (comparePlayerHistory.length === 0) {
+      // Single player mode - apply date filtering if specified
+      let filteredHistory = playerHistory;
+      if (startCompareYear) {
+        const month = startCompareMonth || '01'; // Default to January if month not specified
+        const startDate = new Date(parseInt(startCompareYear), parseInt(month) - 1, 1);
+        
+        // Get last known rating before the filter date for extrapolation
+        const parseDate = (period) => {
+          if (!period) return new Date(0);
+          if (/^\d{4}-\d{2}$/.test(period)) return new Date(period + '-01');
+          if (/^\d+$/.test(period)) return new Date(parseInt(period) * 86400000);
+          const date = new Date(period);
+          return isNaN(date.getTime()) ? new Date(0) : date;
+        };
+        
+        const beforeFilterEntries = playerHistory.filter(entry => parseDate(entry.period) < startDate);
+        const lastKnownRating = beforeFilterEntries.length > 0 ? beforeFilterEntries[beforeFilterEntries.length - 1].rating : null;
+        
+        filteredHistory = playerHistory.filter(entry => {
+          const entryDate = parseDate(entry.period);
+          return entryDate >= startDate;
+        });
+        
+        // If no data in filtered period but we have a last known rating, create a data point
+        if (filteredHistory.length === 0 && lastKnownRating !== null) {
+          filteredHistory = [{
+            period: `${startCompareYear}-${month.padStart(2, '0')}`,
+            rating: lastKnownRating,
+            lastPlayed: 'Extrapolated'
+          }];
+        }
+      }
+      return filteredHistory.map(entry => ({
+        period: entry.period,
+        [playerName]: entry.rating
+      }));
+    }
+
+    // Comparison mode - merge both player datasets
+    const allPeriods = new Set();
+    playerHistory.forEach(entry => allPeriods.add(entry.period));
+    comparePlayerHistory.forEach(entry => allPeriods.add(entry.period));
+    
+    // Get last known ratings before filtering for extrapolation
+    const getLastKnownRating = (history, beforeDate) => {
+      const parseDate = (period) => {
+        if (!period) return new Date(0);
+        if (/^\d{4}-\d{2}$/.test(period)) return new Date(period + '-01');
+        if (/^\d+$/.test(period)) return new Date(parseInt(period) * 86400000);
+        const date = new Date(period);
+        return isNaN(date.getTime()) ? new Date(0) : date;
+      };
+      
+      const beforeFilterEntries = history.filter(entry => parseDate(entry.period) < beforeDate);
+      return beforeFilterEntries.length > 0 ? beforeFilterEntries[beforeFilterEntries.length - 1].rating : null;
+    };
+
+    // Filter by start date if specified
+    let filteredPeriods = Array.from(allPeriods);
+    let startDate = null;
+    let lastPlayer1Rating = null;
+    let lastPlayer2Rating = null;
+    
+    if (startCompareYear) {
+      const month = startCompareMonth || '01'; // Default to January if month not specified
+      startDate = new Date(parseInt(startCompareYear), parseInt(month) - 1, 1);
+      
+      // Get last known ratings before the filter date for extrapolation
+      lastPlayer1Rating = getLastKnownRating(playerHistory, startDate);
+      lastPlayer2Rating = getLastKnownRating(comparePlayerHistory, startDate);
+      
+      filteredPeriods = filteredPeriods.filter(period => {
+        // Parse period to date for comparison
+        const parseDate = (period) => {
+          if (!period) return new Date(0);
+          
+          // If it looks like YYYY-MM format
+          if (/^\d{4}-\d{2}$/.test(period)) {
+            return new Date(period + '-01');
+          }
+          
+          // If it's a numeric period ID, treat as is for now
+          if (/^\d+$/.test(period)) {
+            return new Date(parseInt(period) * 86400000);
+          }
+          
+          // Try to parse as date directly
+          const date = new Date(period);
+          return isNaN(date.getTime()) ? new Date(0) : date;
+        };
+        
+        const entryDate = parseDate(period);
+        return entryDate >= startDate;
+      });
+    }
+
+    // Sort periods chronologically
+    filteredPeriods.sort((a, b) => {
+      const parseDate = (period) => {
+        if (/^\d{4}-\d{2}$/.test(period)) {
+          return new Date(period + '-01');
+        }
+        if (/^\d+$/.test(period)) {
+          return new Date(parseInt(period) * 86400000);
+        }
+        return new Date(period);
+      };
+      
+      const dateA = parseDate(a);
+      const dateB = parseDate(b);
+      return dateA.getTime() - dateB.getTime();
+    });
+
+    // Create merged dataset with interpolation for missing values
+    const mergedData = [];
+    let currentPlayer1Rating = lastPlayer1Rating; // Use pre-calculated last known rating
+    let currentPlayer2Rating = lastPlayer2Rating; // Use pre-calculated last known rating
+    
+    for (let i = 0; i < filteredPeriods.length; i++) {
+      const period = filteredPeriods[i];
+      const dataPoint = { period };
+      
+      // Handle player 1 data
+      const player1Entry = playerHistory.find(entry => entry.period === period);
+      if (player1Entry) {
+        currentPlayer1Rating = player1Entry.rating;
+        dataPoint[playerName] = player1Entry.rating;
+      } else if (currentPlayer1Rating !== null) {
+        // Use previous data point value for missing data (including extrapolated last known rating)
+        dataPoint[playerName] = currentPlayer1Rating;
+      }
+      
+      // Handle player 2 data
+      const player2Entry = comparePlayerHistory.find(entry => entry.period === period);
+      if (player2Entry) {
+        currentPlayer2Rating = player2Entry.rating;
+        dataPoint[comparePlayerName] = player2Entry.rating;
+      } else if (currentPlayer2Rating !== null) {
+        // Use previous data point value for missing data (including extrapolated last known rating)
+        dataPoint[comparePlayerName] = currentPlayer2Rating;
+      }
+      
+      mergedData.push(dataPoint);
+    }
+    
+    
+    return mergedData;
+  }, [playerHistory, comparePlayerHistory, playerName, comparePlayerName, startCompareYear, startCompareMonth]);
 
   // Memoize tick formatter to prevent function recreation
   const tickFormatter = useCallback((value) => {
@@ -162,7 +324,7 @@ const RatingHistoryChart = React.memo(({
     return `Period: ${value}`;
   }, []);
 
-  if (historyLoading) {
+  if (historyLoading || compareHistoryLoading) {
     return (
       <div style={{ 
         textAlign: "center", 
@@ -170,12 +332,12 @@ const RatingHistoryChart = React.memo(({
         color: "#1976D2",
         fontSize: isMobile(windowSize.width) ? "1em" : "1.1em"
       }}>
-        Loading rating history...
+        Loading rating history{compareHistoryLoading ? " for comparison" : ""}...
       </div>
     );
   }
 
-  if (playerHistory.length === 0) {
+  if (chartData.length === 0) {
     return (
       <div style={{
         textAlign: "center",
@@ -183,7 +345,7 @@ const RatingHistoryChart = React.memo(({
         color: "#757575",
         fontSize: isMobile(windowSize.width) ? "1em" : "1.1em"
       }}>
-        No rating history available for {playerName}
+        No rating history available{comparePlayerName ? ` for ${playerName} or ${comparePlayerName}` : ` for ${playerName}`}
       </div>
     );
   }
@@ -197,7 +359,7 @@ const RatingHistoryChart = React.memo(({
     }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
-          data={playerHistory}
+          data={chartData}
           margin={chartConfig.margin}
         >
           <CartesianGrid strokeDasharray="3 3" />
@@ -207,7 +369,7 @@ const RatingHistoryChart = React.memo(({
               fontSize: isMobile(windowSize.width) ? 8 : 12,
               fill: '#1976D2'
             }}
-            interval={isMobile(windowSize.width) ? Math.max(0, Math.floor(playerHistory.length / 3)) : Math.max(0, Math.floor(playerHistory.length / 8))}
+            interval={isMobile(windowSize.width) ? Math.max(0, Math.floor(chartData.length / 3)) : Math.max(0, Math.floor(chartData.length / 8))}
             angle={isMobile(windowSize.width) ? -50 : 0}
             textAnchor={isMobile(windowSize.width) ? 'end' : 'middle'}
             height={isMobile(windowSize.width) ? 70 : 30}
@@ -233,23 +395,45 @@ const RatingHistoryChart = React.memo(({
           />
           <Tooltip 
             labelFormatter={tooltipLabelFormatter}
-            formatter={(value, name) => [value, 'Rating']}
-            contentStyle={{
-              backgroundColor: 'rgba(255, 255, 255, 0.98)',
-              border: '2px solid #2196F3',
-              borderRadius: isMobile(windowSize.width) ? '12px' : '8px',
-              fontSize: isMobile(windowSize.width) ? '13px' : '14px',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
-              padding: isMobile(windowSize.width) ? '12px' : '8px',
-              minWidth: isMobile(windowSize.width) ? '120px' : 'auto'
-            }}
-            labelStyle={{
-              color: '#1976D2',
-              fontWeight: 'bold'
-            }}
-            itemStyle={{
-              color: '#1976D2'
+            content={({ active, payload, label }) => {
+              if (active && payload && payload.length) {
+                return (
+                  <div style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    border: '2px solid #2196F3',
+                    borderRadius: isMobile(windowSize.width) ? '12px' : '8px',
+                    fontSize: isMobile(windowSize.width) ? '13px' : '14px',
+                    fontWeight: 'bold',
+                    boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)',
+                    padding: isMobile(windowSize.width) ? '12px' : '8px',
+                    minWidth: isMobile(windowSize.width) ? '120px' : 'auto'
+                  }}>
+                    <p style={{ 
+                      color: '#1976D2', 
+                      fontWeight: 'bold', 
+                      margin: '0 0 8px 0' 
+                    }}>
+                      {tooltipLabelFormatter(label)}
+                    </p>
+                    {payload.map((entry, index) => {
+                      // Extract second name (first word after first space)
+                      const nameParts = entry.dataKey.split(' ');
+                      const secondName = nameParts.length > 1 ? nameParts[1] : nameParts[0];
+                      
+                      return (
+                        <p key={index} style={{ 
+                          color: entry.color, 
+                          margin: '4px 0',
+                          fontWeight: 'bold'
+                        }}>
+                          <span style={{ color: entry.color }}>●</span> {secondName}: {entry.value}
+                        </p>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              return null;
             }}
             cursor={{
               stroke: '#2196F3',
@@ -260,7 +444,7 @@ const RatingHistoryChart = React.memo(({
           <Legend />
           <Line 
             type="monotone" 
-            dataKey="rating"
+            dataKey={playerName}
             stroke="#2196F3"
             strokeWidth={isMobile(windowSize.width) ? 3 : 2}
             dot={{
@@ -279,6 +463,29 @@ const RatingHistoryChart = React.memo(({
             connectNulls={false}
             name={playerName}
           />
+          {comparePlayerName && comparePlayerHistory.length > 0 && (
+            <Line 
+              type="monotone" 
+              dataKey={comparePlayerName}
+              stroke="#FF6B35"
+              strokeWidth={isMobile(windowSize.width) ? 3 : 2}
+              dot={{
+                fill: '#FF6B35',
+                strokeWidth: 2,
+                stroke: '#fff',
+                r: isMobile(windowSize.width) ? 5 : 4
+              }}
+              activeDot={{
+                r: isMobile(windowSize.width) ? 8 : 6,
+                fill: '#2196F3',
+                stroke: '#fff',
+                strokeWidth: 2,
+                drop: true
+              }}
+              connectNulls={false}
+              name={comparePlayerName}
+            />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -309,6 +516,47 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyCache, setHistoryCache] = useState(new Map());
   const [lastHistoryFetch, setLastHistoryFetch] = useState(0);
+  
+  // Comparison states
+  const [comparePlayerName, setComparePlayerName] = useState('');
+  const [comparePlayerHistory, setComparePlayerHistory] = useState([]);
+  const [compareHistoryLoading, setCompareHistoryLoading] = useState(false);
+  const [startCompareYear, setStartCompareYear] = useState('');
+  const [startCompareMonth, setStartCompareMonth] = useState('');
+  const [showComparison, setShowComparison] = useState(false);
+  
+  // Compare autocomplete states
+  const [compareFilteredNames, setCompareFilteredNames] = useState([]);
+  const [showCompareSuggestions, setShowCompareSuggestions] = useState(false);
+  const [selectedCompareSuggestionIndex, setSelectedCompareSuggestionIndex] = useState(-1);
+
+  // Calculate the earliest year from both player histories
+  const earliestYear = useMemo(() => {
+    const getAllPeriods = () => {
+      const periods = [];
+      playerHistory.forEach(entry => periods.push(entry.period));
+      comparePlayerHistory.forEach(entry => periods.push(entry.period));
+      return periods;
+    };
+    
+    const parseDate = (period) => {
+      if (!period) return new Date(0);
+      if (/^\d{4}-\d{2}$/.test(period)) return new Date(period + '-01');
+      if (/^\d+$/.test(period)) return new Date(parseInt(period) * 86400000);
+      const date = new Date(period);
+      return isNaN(date.getTime()) ? new Date(0) : date;
+    };
+    
+    const allPeriods = getAllPeriods();
+    if (allPeriods.length === 0) return 2010;
+    
+    const earliestDate = allPeriods
+      .map(period => parseDate(period))
+      .filter(date => date.getTime() > 0)
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+    
+    return earliestDate ? earliestDate.getFullYear() : 2010;
+  }, [playerHistory, comparePlayerHistory]);
 
   useEffect(() => {
     if (!SHEET_ID || !API_KEY) {
@@ -387,47 +635,51 @@ function App() {
     fetchData();
   }, [SHEET_URL]);
 
-  useEffect(() => {
+  // Memoize filtered data to avoid re-filtering on every render
+  const filteredData = useMemo(() => {
     try {
       // If months is empty or 0, show all data
       const monthsValue = months === '' || months === '0' ? 1000 : Number(months);
-      let filtered = data.filter(x => isWithinLastNMonths(x.lastPlayed, monthsValue));
       
-      // Apply gender filter
-      if (selectedGender !== 'all') {
-        filtered = filtered.filter(x => x.gender === selectedGender);
-      }
-      
-      // Apply age filter
-      if (selectedAge !== 'all') {
-        filtered = filtered.filter(x => {
-          const age = parseInt(x.age);
+      return data.filter(player => {
+        // Combined filtering in single pass
+        if (!isWithinLastNMonths(player.lastPlayed, monthsValue)) return false;
+        
+        if (selectedGender !== 'all' && player.gender !== selectedGender) return false;
+        
+        if (selectedAge !== 'all') {
+          const age = parseInt(player.age);
           if (isNaN(age) || age === 0) return false;
           
           switch (selectedAge) {
-            case 'u9': return age <= 9;
-            case 'u10': return age <= 10;
-            case 'u11': return age <= 11;
-            case 'u12': return age <= 12;
-            case 'u13': return age <= 13;
-            case 'u14': return age <= 14;
-            case 'u15': return age <= 15;
-            case 'u17': return age <= 17;
-            case 'u19': return age <= 19;
-            default: return true;
+            case 'u9': if (age > 9) return false; break;
+            case 'u10': if (age > 10) return false; break;
+            case 'u11': if (age > 11) return false; break;
+            case 'u12': if (age > 12) return false; break;
+            case 'u13': if (age > 13) return false; break;
+            case 'u14': if (age > 14) return false; break;
+            case 'u15': if (age > 15) return false; break;
+            case 'u17': if (age > 17) return false; break;
+            case 'u19': if (age > 19) return false; break;
           }
-        });
-      }
-      
-      // Apply province filter
-      if (selectedProvince !== 'all') {
-        filtered = filtered.filter(x => x.province === selectedProvince);
-      }
-      
-      setActivePlayerCount(filtered.length);
+        }
+        
+        if (selectedProvince !== 'all' && player.province !== selectedProvince) return false;
+        
+        return true;
+      });
+    } catch (err) {
+      console.error('Error filtering data:', err);
+      return [];
+    }
+  }, [data, months, selectedGender, selectedAge, selectedProvince]);
+
+  useEffect(() => {
+    try {
+      setActivePlayerCount(filteredData.length);
       
       // Update top 100 players list
-      const sortedPlayers = filtered
+      const sortedPlayers = filteredData
         .sort((a, b) => b.rating - a.rating)
         .slice(0, 100)
         .map((player, index) => ({
@@ -452,7 +704,7 @@ function App() {
       console.error('Error filtering data:', err);
       setError('Error processing data');
     }
-  }, [months, data, playerName, selectedGender, selectedAge, selectedProvince]);
+  }, [filteredData, playerName]);
 
   const handleMonthsChange = (e) => {
     const value = e.target.value;
@@ -468,48 +720,45 @@ function App() {
     }
   };
 
-  const handleNameChange = (e) => {
-    const value = e.target.value;
-    setPlayerName(value);
-    setSelectedSuggestionIndex(-1); // Reset suggestion selection
+  // Memoize autocomplete suggestions
+  const autocompleteData = useMemo(() => {
+    if (!data || data.length === 0) return [];
     
-    if (value.length > 0) {
-      // Filter names based on input and gender
-      let filteredData = data.filter(player => 
-        player.name.toLowerCase().includes(value.toLowerCase())
-      );
-      
-      // Apply gender filter
-      if (selectedGender !== 'all') {
-        filteredData = filteredData.filter(player => player.gender === selectedGender);
-      }
-      
-      // Sort by rating first (highest first), then by last played date (most recent first)
-      const sorted = filteredData.sort((a, b) => {
-        // First sort by rating (highest first)
+    return data
+      .filter(player => selectedGender === 'all' || player.gender === selectedGender)
+      .sort((a, b) => {
+        // Pre-sort by rating first, then by last played date
         if (a.rating !== b.rating) {
           return b.rating - a.rating;
         }
         
-        // If ratings are equal, sort by last played date (most recent first)
         const parseDate = (dateStr) => {
-          if (!dateStr) return new Date(0); // Very old date for missing dates
+          if (!dateStr) return new Date(0);
           const parts = dateStr.split(/[\/\-]/);
           if (parts.length === 3) {
-            return new Date(parts[2], parts[0] - 1, parts[1]); // Year, Month-1, Day
+            return new Date(parts[2], parts[0] - 1, parts[1]);
           }
-          return new Date(dateStr); // Fallback to native parsing
+          return new Date(dateStr);
         };
         
         const dateA = parseDate(a.lastPlayed);
         const dateB = parseDate(b.lastPlayed);
         
-        return dateB.getTime() - dateA.getTime(); // Most recent first
-      });
-      
-      const filtered = sorted
-        .map(player => player.name)
-        .slice(0, 10); // Limit to 10 suggestions
+        return dateB.getTime() - dateA.getTime();
+      })
+      .map(player => player.name);
+  }, [data, selectedGender]);
+
+  const handleNameChange = (e) => {
+    const value = e.target.value;
+    setPlayerName(value);
+    setSelectedSuggestionIndex(-1);
+    
+    if (value.length > 0) {
+      // Fast string matching on pre-sorted data
+      const filtered = autocompleteData
+        .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+        .slice(0, 10);
       
       setFilteredNames(filtered);
       setShowSuggestions(true);
@@ -523,6 +772,17 @@ function App() {
       setSelectedProvince('all');
       setSelectedGender('all');
       setSelectedAge('all');
+      
+      // Hide the rating history section
+      setShowHistory(false);
+      setPlayerHistory([]);
+      
+      // Clear comparison data
+      setComparePlayerName('');
+      setComparePlayerHistory([]);
+      setShowComparison(false);
+      setStartCompareYear('');
+      setStartCompareMonth('');
     }
   };
 
@@ -613,6 +873,91 @@ function App() {
     // The useEffect will handle recalculating player info with the new filter values
   };
 
+  // Memoize comparison autocomplete data (all players, no restrictions)
+  const compareAutocompleteData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
+    return data
+      .sort((a, b) => {
+        if (a.rating !== b.rating) {
+          return b.rating - a.rating;
+        }
+        
+        const parseDate = (dateStr) => {
+          if (!dateStr) return new Date(0);
+          const parts = dateStr.split(/[\/\-]/);
+          if (parts.length === 3) {
+            return new Date(parts[2], parts[0] - 1, parts[1]);
+          }
+          return new Date(dateStr);
+        };
+        
+        const dateA = parseDate(a.lastPlayed);
+        const dateB = parseDate(b.lastPlayed);
+        
+        return dateB.getTime() - dateA.getTime();
+      })
+      .map(player => player.name);
+  }, [data]);
+
+  // Compare player autocomplete handlers
+  const handleCompareNameChange = (e) => {
+    const value = e.target.value;
+    setComparePlayerName(value);
+    setSelectedCompareSuggestionIndex(-1);
+    
+    if (value.length > 0) {
+      // Fast string matching on pre-sorted data
+      const filtered = compareAutocompleteData
+        .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+        .slice(0, 10);
+      
+      setCompareFilteredNames(filtered);
+      setShowCompareSuggestions(true);
+    } else {
+      setCompareFilteredNames([]);
+      setShowCompareSuggestions(false);
+      setSelectedCompareSuggestionIndex(-1);
+      setComparePlayerHistory([]);
+      setShowComparison(false);
+    }
+  };
+
+  const handleCompareKeyDown = (e) => {
+    if (!showCompareSuggestions || compareFilteredNames.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedCompareSuggestionIndex(prev => {
+        const newIndex = prev < compareFilteredNames.length - 1 ? prev + 1 : 0;
+        return newIndex;
+      });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedCompareSuggestionIndex(prev => {
+        const newIndex = prev > 0 ? prev - 1 : compareFilteredNames.length - 1;
+        return newIndex;
+      });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedCompareSuggestionIndex >= 0 && selectedCompareSuggestionIndex < compareFilteredNames.length) {
+        handleCompareNameSelect(compareFilteredNames[selectedCompareSuggestionIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowCompareSuggestions(false);
+      setSelectedCompareSuggestionIndex(-1);
+    }
+  };
+
+  const handleCompareNameSelect = (name) => {
+    setComparePlayerName(name);
+    setShowCompareSuggestions(false);
+    setSelectedCompareSuggestionIndex(-1);
+    
+    // Fetch comparison player history
+    fetchComparePlayerHistory(name);
+  };
+
   // Fetch player rating history with performance optimizations
   const fetchPlayerHistory = async (selectedPlayerName) => {
     if (!selectedPlayerName || !selectedPlayerName.trim()) return;
@@ -692,7 +1037,87 @@ function App() {
     }
   };
 
-
+  // Fetch comparison player history
+  const fetchComparePlayerHistory = async (selectedPlayerName) => {
+    if (!selectedPlayerName || !selectedPlayerName.trim()) {
+      setComparePlayerHistory([]);
+      setShowComparison(false);
+      return;
+    }
+    
+    setCompareHistoryLoading(true);
+    setShowComparison(true);
+    
+    try {
+      // Check cache first (10-minute expiration for better mobile performance)
+      const cacheKey = `compare_${selectedPlayerName.toLowerCase()}`;
+      const now = Date.now();
+      if (historyCache.has(cacheKey) && (now - lastHistoryFetch) < 10 * 60 * 1000) {
+        const cachedData = historyCache.get(cacheKey);
+        setComparePlayerHistory(cachedData);
+        setCompareHistoryLoading(false);
+        return;
+      }
+      
+      const response = await fetch(HISTORY_SHEET_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const json = await response.json();
+      if (!json.values || !Array.isArray(json.values)) {
+        throw new Error('Invalid rating history data format');
+      }
+      
+      // Parse rating history data - expecting format: [PlayerName, Period, Rating, LastPlayed, Gender, Province]
+      const rows = json.values.slice(1); // skip header
+      const playerData = rows
+        .filter(row => row && row.length >= 3 && row[0] && row[0].toLowerCase() === selectedPlayerName.toLowerCase())
+        .map(row => ({
+          period: row[1] || '',
+          rating: parseInt(row[2], 10) || 0,
+          lastPlayed: row[3] || ''
+        }))
+        .filter(entry => entry.rating > 0)
+        .sort((a, b) => {
+          // Convert period to date for proper chronological sorting
+          const parseDate = (period) => {
+            if (!period) return new Date(0);
+            
+            // If it looks like YYYY-MM format
+            if (/^\d{4}-\d{2}$/.test(period)) {
+              return new Date(period + '-01');
+            }
+            
+            // If it's a numeric period ID, treat as is for now
+            if (/^\d+$/.test(period)) {
+              return new Date(parseInt(period) * 86400000); // Convert to milliseconds for sorting
+            }
+            
+            // Try to parse as date directly
+            const date = new Date(period);
+            return isNaN(date.getTime()) ? new Date(0) : date;
+          };
+          
+          const dateA = parseDate(a.period);
+          const dateB = parseDate(b.period);
+          
+          return dateA.getTime() - dateB.getTime();
+        });
+      
+      // Update cache
+      setHistoryCache(prev => new Map(prev.set(cacheKey, playerData)));
+      setLastHistoryFetch(now);
+      
+      setComparePlayerHistory(playerData);
+      
+    } catch (error) {
+      console.error('Error fetching comparison player history:', error);
+      setError(`Failed to load comparison player history: ${error.message}`);
+    } finally {
+      setCompareHistoryLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -960,6 +1385,15 @@ function App() {
                         setSelectedProvince('all');
                         setSelectedGender('all');
                         setSelectedAge('all');
+                        // Hide the rating history section
+                        setShowHistory(false);
+                        setPlayerHistory([]);
+                        // Clear comparison data
+                        setComparePlayerName('');
+                        setComparePlayerHistory([]);
+                        setShowComparison(false);
+                        setStartCompareYear('');
+                        setStartCompareMonth('');
                       }}
                       style={{
                         position: "absolute",
@@ -1510,11 +1944,261 @@ function App() {
               </h2>
               
               <RatingHistoryChart 
+                key={`${playerName}-${comparePlayerName}-${startCompareYear}-${startCompareMonth}`}
                 playerHistory={playerHistory}
                 playerName={playerName}
                 windowSize={windowSize}
                 historyLoading={historyLoading}
+                comparePlayerHistory={comparePlayerHistory}
+                comparePlayerName={comparePlayerName}
+                compareHistoryLoading={compareHistoryLoading}
+                startCompareYear={startCompareYear}
+                startCompareMonth={startCompareMonth}
               />
+              
+              {/* Player Comparison Controls */}
+              <div style={{
+                marginTop: "20px",
+                padding: isMobile(windowSize.width) ? "16px" : "20px",
+                background: "linear-gradient(45deg, #f0f7ff, #e3f2fd)",
+                borderRadius: isMobile(windowSize.width) ? "8px" : "12px",
+                border: "2px solid #2196F3"
+              }}>
+                <h3 style={{
+                  color: "#1976D2",
+                  fontSize: isMobile(windowSize.width) ? "1.1em" : "1.3em",
+                  marginBottom: "16px",
+                  textAlign: "center"
+                }}>
+                  Compare Players
+                </h3>
+                
+                <div style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: isMobile(windowSize.width) ? "20px" : "16px",
+                  alignItems: "stretch"
+                }}>
+                  {/* Compare Player Input */}
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: isMobile(windowSize.width) ? "12px" : "8px",
+                    position: "relative"
+                  }}>
+                    <label style={{
+                      color: "#1976D2",
+                      fontWeight: "bold",
+                      fontSize: isMobile(windowSize.width) ? "1em" : "1em"
+                    }}>
+                      Compare Player:
+                    </label>
+                    <input
+                      type="text"
+                      value={comparePlayerName}
+                      onChange={handleCompareNameChange}
+                      onKeyDown={handleCompareKeyDown}
+                      placeholder="Enter player name to compare..."
+                      style={{
+                        padding: isMobile(windowSize.width) ? "12px" : "10px",
+                        fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                        borderRadius: "8px",
+                        border: "2px solid #2196F3",
+                        fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                        minHeight: isMobile(windowSize.width) ? "44px" : "auto"
+                      }}
+                      onFocus={() => {
+                        if (compareFilteredNames.length > 0) {
+                          setShowCompareSuggestions(true);
+                        }
+                      }}
+                      onBlur={() => {
+                        // Delay hiding suggestions to allow clicking
+                        setTimeout(() => {
+                          setShowCompareSuggestions(false);
+                          setSelectedCompareSuggestionIndex(-1);
+                        }, 200);
+                      }}
+                    />
+                    
+                    {/* Compare Player Autocomplete Suggestions */}
+                    {showCompareSuggestions && compareFilteredNames.length > 0 && (
+                      <div className="autocomplete-suggestions" style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: "0",
+                        right: "0",
+                        background: "white",
+                        border: isMobile(windowSize.width) ? "2px solid #2196F3" : "3px solid #2196F3",
+                        borderTop: "none",
+                        borderRadius: isMobile(windowSize.width) ? "0 0 8px 8px" : "0 0 15px 15px",
+                        maxHeight: isMobile(windowSize.width) ? "160px" : "200px",
+                        overflowY: "auto",
+                        zIndex: 1000,
+                        boxShadow: "0 5px 15px rgba(128, 128, 128, 0.3)"
+                      }}>
+                        {compareFilteredNames.map((name, index) => (
+                          <div
+                            key={index}
+                            style={{
+                              padding: isMobile(windowSize.width) ? "14px 16px" : "10px 15px",
+                              cursor: "pointer",
+                              borderBottom: index < compareFilteredNames.length - 1 ? "1px solid #e8e8e8" : "none",
+                              color: "#444444",
+                              fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                              backgroundColor: selectedCompareSuggestionIndex === index ? "#e3f2fd" : "white",
+                              fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                              minHeight: isMobile(windowSize.width) ? "44px" : "auto",
+                              display: "flex",
+                              alignItems: "center",
+                              transition: "background-color 0.2s ease"
+                            }}
+                            onMouseDown={() => handleCompareNameSelect(name)}
+                            onMouseEnter={() => setSelectedCompareSuggestionIndex(index)}
+                            onMouseLeave={() => setSelectedCompareSuggestionIndex(-1)}
+                          >
+                            {name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Start Date Control */}
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: isMobile(windowSize.width) ? "12px" : "8px"
+                  }}>
+                    <label style={{
+                      color: "#1976D2",
+                      fontWeight: "bold",
+                      fontSize: isMobile(windowSize.width) ? "1em" : "1em"
+                    }}>
+                      Start From (YYYY-MM):
+                    </label>
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: isMobile(windowSize.width) ? "12px" : "8px",
+                      justifyContent: isMobile(windowSize.width) ? "flex-start" : "flex-start"
+                    }}>
+                      <input
+                        type="number"
+                        value={startCompareYear}
+                        onChange={(e) => setStartCompareYear(e.target.value)}
+                        placeholder={earliestYear.toString()}
+                        min={earliestYear.toString()}
+                        max="2030"
+                        style={{
+                          padding: isMobile(windowSize.width) ? "14px 12px" : "10px",
+                          fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                          borderRadius: isMobile(windowSize.width) ? "10px" : "8px",
+                          border: "2px solid #2196F3",
+                          fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                          minHeight: isMobile(windowSize.width) ? "48px" : "auto",
+                          width: isMobile(windowSize.width) ? "100px" : "80px",
+                          textAlign: "center",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          MozAppearance: "textfield"
+                        }}
+                      />
+                      <span style={{
+                        color: "#1976D2",
+                        fontWeight: "bold",
+                        fontSize: isMobile(windowSize.width) ? "1.4em" : "1.5em",
+                        minWidth: isMobile(windowSize.width) ? "20px" : "auto",
+                        textAlign: "center"
+                      }}>
+                        -
+                      </span>
+                      <input
+                        type="number"
+                        value={startCompareMonth}
+                        onChange={(e) => setStartCompareMonth(e.target.value)}
+                        placeholder="01"
+                        min="1"
+                        max="12"
+                        style={{
+                          padding: isMobile(windowSize.width) ? "14px 12px" : "10px",
+                          fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                          borderRadius: isMobile(windowSize.width) ? "10px" : "8px",
+                          border: "2px solid #2196F3",
+                          fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                          minHeight: isMobile(windowSize.width) ? "48px" : "auto",
+                          width: isMobile(windowSize.width) ? "80px" : "60px",
+                          textAlign: "center",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          MozAppearance: "textfield"
+                        }}
+                      />
+                    </div>
+                    <div style={{
+                      fontSize: "0.8em",
+                      color: "#666",
+                      fontStyle: "italic"
+                    }}>
+                      Leave empty for all data
+                    </div>
+                  </div>
+                  
+                  {/* Clear Button */}
+                  {comparePlayerName && (
+                    <button
+                      onClick={() => {
+                        setComparePlayerName('');
+                        setComparePlayerHistory([]);
+                        setShowComparison(false);
+                        setStartCompareYear('');
+                        setStartCompareMonth('');
+                      }}
+                      style={{
+                        padding: isMobile(windowSize.width) ? "16px 20px" : "10px 16px",
+                        backgroundColor: "#FF6B35",
+                        color: "white",
+                        border: "none",
+                        borderRadius: isMobile(windowSize.width) ? "12px" : "8px",
+                        fontFamily: "'Fredoka', 'Bubblegum Sans', cursive, sans-serif",
+                        fontWeight: "bold",
+                        cursor: "pointer",
+                        fontSize: isMobile(windowSize.width) ? "16px" : "1em",
+                        minHeight: isMobile(windowSize.width) ? "48px" : "auto",
+                        alignSelf: "stretch",
+                        boxShadow: isMobile(windowSize.width) ? "0 2px 8px rgba(255, 107, 53, 0.3)" : "none",
+                        transition: "all 0.2s ease"
+                      }}
+                      onTouchStart={(e) => {
+                        e.target.style.transform = "scale(0.98)";
+                        e.target.style.backgroundColor = "#e55a2b";
+                      }}
+                      onTouchEnd={(e) => {
+                        setTimeout(() => {
+                          e.target.style.transform = "scale(1)";
+                          e.target.style.backgroundColor = "#FF6B35";
+                        }, 150);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                
+                {comparePlayerName && comparePlayerHistory.length === 0 && !compareHistoryLoading && (
+                  <div style={{
+                    marginTop: "12px",
+                    padding: "8px",
+                    backgroundColor: "#fff3cd",
+                    color: "#856404",
+                    borderRadius: "4px",
+                    fontSize: "0.9em",
+                    textAlign: "center"
+                  }}>
+                    No rating history found for "{comparePlayerName}"
+                  </div>
+                )}
+              </div>
               
             </div>
           )}
