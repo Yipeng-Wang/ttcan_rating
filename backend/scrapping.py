@@ -33,10 +33,11 @@ logger = logging.getLogger(__name__)
 class ScraperConfig:
     TTCAN_BASE_URL = os.getenv("TTCAN_BASE_URL", "http://www.ttcan.ca/ratingSystem/ctta_ratings2.asp")
     CATEGORY_CODE = os.getenv("CATEGORY_CODE", "1")
-    PERIOD_ISSUED = os.getenv("PERIOD_ISSUED", "412")
     SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
     SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Sheet1")
     CREDS_JSON = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "ttcan-rating-analysis-2ef44605707a.json")
+
+    PERIOD_ISSUED = os.getenv("PERIOD_ISSUED", "414")
     
     # Scraping constants
     MAX_RETRIES = 3

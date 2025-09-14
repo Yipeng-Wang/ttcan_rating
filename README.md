@@ -121,8 +121,20 @@ The scraper fetches all TTCAN player ratings and stores them in Google Sheets:
 
 ```bash
 cd backend
-python scrapping.py
+python scrapping.py                 # Basic scraping (players only)
+python scrapping.py --history       # Scrape players + rating history (slower)
+python scrapping.py --use-cache     # Use cached data instead of re-scraping
+python scrapping.py --resume        # Resume from last interrupted session
+python scrapping.py --status        # Show current session and upload status
 ```
+
+#### Command Line Options
+
+- `--history`: Fetch rating history for all players (significantly slower but provides historical data)
+- `--use-cache`: Use previously cached data instead of re-scraping (useful for retrying failed uploads)
+- `--resume`: Resume from the last interrupted scraping session
+- `--status`: Show progress and upload status of current session
+- `--help`, `-h`: Show help message with all available options
 
 Features:
 - Automatic pagination through all rating pages
