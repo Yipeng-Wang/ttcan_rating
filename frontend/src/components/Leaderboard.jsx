@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { GENDERS, formatMonth, formatNumber } from '../data';
 
-const PAGE = 25;
+const PAGE = 15; // rows shown before "Show more"
 const MEDALS = { 1: ['🥇', '1st place'], 2: ['🥈', '2nd place'], 3: ['🥉', '3rd place'] };
 
 function Row({ player, rank, selected, onSelect }) {
