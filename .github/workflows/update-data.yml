@@ -19,7 +19,8 @@ concurrency:
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    # TTCAN blocks GitHub's cloud IPs, so this runs on a self-hosted runner on a home network.
+    runs-on: [self-hosted, ttcan]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
