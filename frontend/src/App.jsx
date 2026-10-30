@@ -124,6 +124,7 @@ function App() {
               compare={comparePlayer ? { player: comparePlayer, history: compareHistory } : null}
               players={comparePool}
               allPlayers={dataset.players}
+              playersById={byId}
               activeFilter={active}
               onSelect={selectPlayer}
               range={view.range}

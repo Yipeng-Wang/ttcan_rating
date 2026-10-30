@@ -14,6 +14,7 @@ TTCAN rating site ──scrape──▶ frontend/public/data/*.json ──npm ru
 2. It writes static JSON into `frontend/public/data/`:
    - `players.json`: every player in the current rating period, keyed by TTCAN player ID.
    - `history/<n>.json`: rating history, split into 64 shards by `player ID % 64`.
+   - `similar/<n>.json`: for each active player, up to three players whose rating grew the same way at the same age (see `backend/trajectories.py`), sharded the same way.
 3. The React app loads `players.json` once, and loads one small history shard when you pick a player.
 
 No API keys or Google services are involved. The data files are committed, so the repo always holds the last published data.
@@ -45,6 +46,7 @@ Options:
 | `--fresh` | Ignore cached pages for this period |
 | `--force` | Publish even if the player count dropped by more than 10% |
 | `--out DIR` | Output directory (default `frontend/public/data`) |
+| `--rebuild-similar` | Only recompute `similar/` from the published data, without scraping |
 
 Safety and resuming:
 

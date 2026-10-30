@@ -4,6 +4,7 @@ import {
   latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange,
 } from '../data';
 import HistoryChart from './HistoryChart';
+import GrowthMatches from './GrowthMatches';
 import PlayerSearch from './PlayerSearch';
 import { Segmented } from './Filters';
 
@@ -71,7 +72,7 @@ function NearbyPlayers({ group, player, onSelect, onCompare, compareId }) {
 }
 
 export default function PlayerCard({
-  player, standing, activeLabel, history, compare, players, allPlayers, activeFilter, range, isMobile,
+  player, standing, activeLabel, history, compare, players, allPlayers, playersById, activeFilter, range, isMobile,
   onClose, onSelect, onCompare, onClearCompare, onRange,
 }) {
   const ready = history.status === 'ready';
@@ -151,6 +152,10 @@ export default function PlayerCard({
       {activeLabel && standing.inPool && <p className="muted small">Counting players who played in the last {activeLabel}.</p>}
 
       <NearbyPlayers group={group} player={player} onSelect={onSelect} onCompare={onCompare} compareId={compare?.player.id} />
+
+      {ready && history.data.length > 0 && (
+        <GrowthMatches player={player} history={history.data} playersById={playersById} onSelect={onSelect} compact={isMobile} />
+      )}
 
       <div className="history">
         <div className="history__head">

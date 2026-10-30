@@ -26,6 +26,8 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+from trajectories import find_similar
+
 load_dotenv()
 
 logger = logging.getLogger("ttcan")
@@ -372,7 +374,36 @@ def build_output(players: List[Dict], history: Dict[str, List], period: str, sou
             shards.setdefault(shard_of(player_id), {})[player_id] = entries
         for shard, content in shards.items():
             files[f"history/{shard}.json"] = content
+        files.update(similar_files(find_similar(players_doc["players"], history)))
     return files
+
+
+def similar_files(similar: Dict[str, List[Dict]]) -> Dict[str, object]:
+    """Shard similar-trajectory matches the same way as history."""
+    shards: Dict[int, Dict[str, List[Dict]]] = {}
+    for player_id, matches in similar.items():
+        shards.setdefault(shard_of(player_id), {})[player_id] = matches
+    return {f"similar/{shard}.json": content for shard, content in shards.items()}
+
+
+def rebuild_similar(out_dir: Path) -> int:
+    """Recompute similar/ from the published players.json and history/ without scraping."""
+    players = json.loads((out_dir / "players.json").read_text())["players"]
+    history: Dict[str, List] = {}
+    for shard in (out_dir / "history").glob("*.json"):
+        history.update(json.loads(shard.read_text()))
+    files = similar_files(find_similar(players, history))
+    staging = out_dir / "similar.staging"
+    shutil.rmtree(staging, ignore_errors=True)
+    for rel_path, content in files.items():
+        path = staging / rel_path.split("/", 1)[1]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(content, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    shutil.rmtree(out_dir / "similar", ignore_errors=True)
+    staging.rename(out_dir / "similar")
+    count = sum(len(c) for c in files.values())
+    logger.info("Wrote similar-trajectory matches for %s players in %s files", count, len(files))
+    return count
 
 
 def published_period(out_dir: Path) -> Optional[str]:
@@ -401,8 +432,10 @@ def publish(files: Dict[str, object], out_dir: Path, force: bool = False, keep_h
 
     staging = out_dir.with_name(out_dir.name + ".staging")
     shutil.rmtree(staging, ignore_errors=True)
-    if keep_history and (out_dir / "history").is_dir():
-        shutil.copytree(out_dir / "history", staging / "history")
+    if keep_history:
+        for folder in ("history", "similar"):
+            if (out_dir / folder).is_dir():
+                shutil.copytree(out_dir / folder, staging / folder)
     for rel_path, content in files.items():
         path = staging / rel_path
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -430,10 +463,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--force", action="store_true", help="publish even if the player count dropped sharply")
     parser.add_argument("--skip-if-current", action="store_true",
                         help="do nothing if the published data already has this rating period")
+    parser.add_argument("--rebuild-similar", action="store_true",
+                        help="only recompute similar-trajectory matches from the published data")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                         handlers=[logging.FileHandler(BACKEND_DIR / "scraper.log"), logging.StreamHandler(sys.stdout)])
+
+    if args.rebuild_similar:
+        rebuild_similar(args.out)
+        return 0
 
     try:
         period = args.period or detect_period(Fetcher(cache_dir=None))

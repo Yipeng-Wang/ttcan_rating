@@ -232,6 +232,27 @@ select {
 .compare { margin-top: 18px; max-width: 440px; }
 .compare__current { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-weight: 600; }
 
+/* players who grew like you */
+.growth { margin-top: 26px; }
+.growth > .muted { margin: 2px 0 12px; max-width: 46em; }
+.growth__list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.growth__card {
+  display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer;
+  border: 2px solid transparent; background: var(--tint-mint); color: var(--text-primary);
+  border-radius: 16px; padding: 12px 14px;
+}
+.growth__card:hover { border-color: var(--border); }
+.growth__card.is-open { border-color: var(--series-2); background: var(--surface); box-shadow: var(--shadow); }
+.growth__name { font-weight: 800; }
+.growth__kind { font-size: 0.78rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.growth__then { font-size: 0.9rem; color: var(--text-secondary); margin-top: 4px; }
+.growth__later { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.9rem; color: var(--text-secondary); }
+.growth__step strong { color: var(--text-primary); }
+.growth__step .is-up { color: var(--good); font-weight: 700; }
+.growth__step .is-down { color: var(--bad); font-weight: 700; }
+.growth__chart { margin-top: 12px; }
+.growth__profile { margin-top: 8px; }
+
 /* ---- charts ------------------------------------------------------------- */
 .chart { width: 100%; }
 .chart-empty { padding: 32px 0; text-align: center; }

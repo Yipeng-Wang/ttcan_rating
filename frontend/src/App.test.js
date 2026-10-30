@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 import {
-  betterThanPercent, formatMonth, histogram, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters, mergeHistories,
+  betterThanPercent, formatMonth, formatYears, growthPoints, histogram, ratingAt, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters, mergeHistories,
   niceTicks, playerStanding, searchPlayers, toAppPlayer, yearTicks,
 } from './data';
 
@@ -100,6 +100,17 @@ describe('data helpers', () => {
     expect(histogram(players, 1000).map(b => b.count)).toEqual([0, 3, 0, 0, 1]);
   });
 
+  test('lines histories up by age or career and reads ratings in between', () => {
+    const h = [{ date: '2024-01-01', rating: 800 }, { date: '2025-01-01', rating: 1000 }, { date: '2028-01-01', rating: 1500 }];
+    const byAge = growthPoints(h, 'age', 2011);
+    expect(byAge.map(p => Math.round(p.x * 100) / 100)).toEqual([13, 14, 17]);
+    expect(ratingAt(byAge, 13.5)).toBe(900);
+    expect(ratingAt(byAge, 15)).toBeNull(); // across a three-year break
+    expect(growthPoints(h, 'career', null)[1].x).toBeCloseTo(1, 1);
+    expect(formatYears(16.75)).toBe('16¾');
+    expect(formatYears(16.99)).toBe('17');
+  });
+
   test('loads one history shard for players that share it', async () => {
     mockFetch({ '/data/history/36.json': { body: { 100: [[420, '2026-02-28', 1490]], 164: [[421, '2026-03-31', 900]] } } });
     expect(await loadPlayerHistory('100')).toEqual([{ date: '2026-02-28', t: Date.UTC(2026, 1, 28), rating: 1490 }]);
@@ -160,5 +171,33 @@ describe('app', () => {
     render(<App />);
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Couldn’t load rating history'));
     expect(screen.getByRole('table', { name: 'Top players' })).toBeInTheDocument();
+  });
+
+  test('shows players who grew like you and how they kept going', async () => {
+    const doc = {
+      ...playersDoc,
+      players: [
+        { id: '500', name: 'NEW Kid', province: 'ON', gender: 'F', rating: 1200, lastPlayed: '2026-01-01', birthYear: 2011 },
+        { id: '564', name: 'OLDER Star', province: 'ON', gender: 'F', rating: 1650, lastPlayed: '2015-01-01', birthYear: 1996 },
+      ],
+    };
+    window.history.replaceState(null, '', '/?player=500');
+    mockFetch({
+      '/data/players.json': { body: doc },
+      '/data/history/52.json': { body: {
+        500: [[1, '2024-01-01', 800], [2, '2025-01-01', 1000], [3, '2026-01-01', 1200]],
+        564: [[1, '2009-01-01', 790], [2, '2010-01-01', 1010], [3, '2011-01-01', 1190], [4, '2012-01-01', 1400], [5, '2013-01-01', 1550], [6, '2014-01-01', 1600]],
+      } },
+      '/data/similar/52.json': { body: { 500: [{ id: '564', by: 'age', at: 15, match: 'path' }] } },
+    });
+    render(<App />);
+    const tab = await screen.findByRole('tab', { name: /OLDER Star/ });
+    expect(tab).toHaveTextContent('Similar climb');
+    expect(tab).toHaveTextContent('At age 15: 1,190');
+    expect(tab).toHaveTextContent('+1y 1,400 (+210)');
+    expect(tab).toHaveTextContent('+3y 1,600 (+410)');
+    expect(screen.getByText('NEW Kid', { selector: '.legend li' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'See OLDER Star’s full profile' }));
+    expect(await screen.findByRole('region', { name: 'OLDER Star' })).toBeInTheDocument();
   });
 });

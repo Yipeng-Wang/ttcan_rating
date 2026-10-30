@@ -33,7 +33,23 @@ export const RANGE_OPTIONS = [
 // ---- loading -------------------------------------------------------------
 
 let historyShardCount = 64;
-const historyShardCache = new Map(); // shard -> Promise<{ [playerId]: [[periodId, isoDate, rating], ...] }>
+const shardCache = new Map(); // "kind/shard" -> Promise<{ [playerId]: ... }>
+
+/** Fetch (once) the shard file of a sharded folder such as history/ or similar/. */
+function loadShard(kind, playerId) {
+  const shard = Number(playerId) % historyShardCount;
+  const key = `${kind}/${shard}`;
+  if (!shardCache.has(key)) {
+    const request = fetch(`${DATA_URL}/${key}.json`).then(response => {
+      if (response.status === 404) return {}; // no player in this shard has data
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    });
+    shardCache.set(key, request);
+    request.catch(() => shardCache.delete(key)); // allow a retry
+  }
+  return shardCache.get(key);
+}
 
 export function toAppPlayer(raw, currentYear = new Date().getFullYear()) {
   return {
@@ -44,6 +60,7 @@ export function toAppPlayer(raw, currentYear = new Date().getFullYear()) {
     rating: Number(raw.rating),
     lastPlayed: raw.lastPlayed || '',
     age: raw.birthYear ? currentYear - raw.birthYear : null,
+    birthYear: raw.birthYear || null,
     provisional: Boolean(raw.temporary),
   };
 }
@@ -62,18 +79,49 @@ export async function loadPlayers(fetchImpl = fetch) {
 
 export async function loadPlayerHistory(playerId) {
   if (!playerId) return [];
-  const shard = Number(playerId) % historyShardCount;
-  if (!historyShardCache.has(shard)) {
-    const request = fetch(`${DATA_URL}/history/${shard}.json`).then(response => {
-      if (response.status === 404) return {};
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      return response.json();
-    });
-    historyShardCache.set(shard, request);
-    request.catch(() => historyShardCache.delete(shard)); // allow a retry
-  }
-  const entries = (await historyShardCache.get(shard))[playerId] || [];
+  const entries = (await loadShard('history', playerId))[playerId] || [];
   return entries.map(([, date, rating]) => ({ date, t: isoToTime(date), rating }));
+}
+
+/** Players whose rating grew like this player's: [{ id, by: 'age'|'career', at, match: 'path'|'level' }]. */
+export async function loadSimilar(playerId) {
+  if (!playerId) return [];
+  return (await loadShard('similar', playerId))[playerId] || [];
+}
+
+// ---- growth (age-aligned) ----------------------------------------------
+
+function decimalYear(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return y + (m - 1) / 12 + (d - 1) / 365;
+}
+
+/** History as [{ x, rating }] where x is age, or years since the first rating. */
+export function growthPoints(history, by, birthYear) {
+  if (!history.length) return [];
+  const origin = by === 'age' ? birthYear : decimalYear(history[0].date);
+  if (origin == null) return [];
+  return history.map(e => ({ x: decimalYear(e.date) - origin, rating: e.rating }));
+}
+
+/** Rating at x by straight-line interpolation; null outside the history or across long breaks. */
+export function ratingAt(points, x, maxGap = 1.5) {
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    if (Math.abs(p.x - x) < 1e-6) return p.rating;
+    const next = points[i + 1];
+    if (next && p.x < x && x < next.x) {
+      if (next.x - p.x > maxGap) return null;
+      return Math.round(p.rating + ((next.rating - p.rating) * (x - p.x)) / (next.x - p.x));
+    }
+  }
+  return null;
+}
+
+/** "16.75" -> "16¾", for ages and career years. */
+export function formatYears(x) {
+  const quarters = Math.round(x * 4);
+  return `${Math.floor(quarters / 4)}${['', '¼', '½', '¾'][quarters % 4]}`;
 }
 
 // ---- dates & formatting ---------------------------------------------------
