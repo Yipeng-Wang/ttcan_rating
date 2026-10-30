@@ -1,0 +1,91 @@
+name: Update ratings data
+
+on:
+  schedule:
+    - cron: "0 13 * * *" # daily, 9am Eastern (EDT); exits after one page fetch if there is no new period
+  workflow_dispatch:
+    inputs:
+      full_refresh:
+        description: "Scrape even if the current period is already published"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install scraper dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Scraper tests
+        working-directory: backend
+        run: python -m pytest -q tests
+
+      - name: Scrape TTCAN
+        working-directory: backend
+        run: python scrapping.py --history ${{ inputs.full_refresh && '' || '--skip-if-current' }}
+
+      - name: Check for new data
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain frontend/public/data)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "period=$(python -c 'import json; print(json.load(open("frontend/public/data/players.json"))["period"])')" >> "$GITHUB_OUTPUT"
+          else
+            echo "No new data."
+          fi
+
+      - name: Commit data
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/data
+          git commit -m "Update ratings data to period ${{ steps.changes.outputs.period }}"
+          git push origin HEAD:main
+
+      - uses: actions/setup-node@v4
+        if: steps.changes.outputs.changed == 'true'
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build and deploy site
+        if: steps.changes.outputs.changed == 'true'
+        working-directory: frontend
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm ci --no-audit --no-fund
+          npm test -- --watchAll=false
+          npm run build
+          npx gh-pages -d build \
+            -u "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" \
+            -r "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+
+      - name: Keep scraper log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-log
+          path: backend/scraper.log
+          if-no-files-found: ignore
