@@ -201,4 +201,50 @@ describe('app', () => {
     expect(within(climbers).getAllByRole('row')[1]).toHaveTextContent('+150');
     expect(within(screen.getByRole('region', { name: 'TEEN Player' })).getByText('+150')).toBeInTheDocument();
   });
+
+  test('the rating calculator adds up a tournament and handles new players', async () => {
+    window.history.replaceState(null, '', '/?page=calculator');
+    mockFetch({ '/data/players.json': { body: playersDoc } });
+    render(<App />);
+    await screen.findByRole('heading', { name: /Rating calculator/ });
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. 1500'), { target: { value: '1500' } });
+    expect(screen.getByRole('radio', { name: '★★' })).toHaveAttribute('aria-checked', 'true'); // the default
+    fireEvent.change(screen.getByLabelText('Match 1 opponent rating'), { target: { value: '1380' } });
+    fireEvent.change(screen.getByLabelText('Match 2 opponent rating'), { target: { value: '1650' } });
+    expect(screen.getAllByRole('listitem').filter(li => li.className === 'calc-match')).toHaveLength(3); // three rows to start
+    fireEvent.change(screen.getByLabelText('Match 3 opponent rating'), { target: { value: '1450' } });
+    fireEvent.click(screen.getAllByRole('radio', { name: 'I lost' })[2]);
+
+    const matches = screen.getAllByRole('listitem').filter(li => li.className === 'calc-match');
+    expect(matches.map(m => within(m).getByText(/^[+−±]\d/).textContent)).toEqual(['+8', '+24', '−16']);
+    expect(within(matches[1]).getByText('Upset win · you were 150 points lower')).toBeInTheDocument();
+    const result = screen.getByRole('region', { name: /Result/ });
+    expect(within(result).getByText('+16')).toBeInTheDocument();
+    expect(within(result).getByText('1,516')).toBeInTheDocument();
+
+    // an unrated opponent exchanges nothing
+    fireEvent.change(screen.getByLabelText('Match 3 opponent status'), { target: { value: 'unrated' } });
+    expect(within(result).getByText('+32')).toBeInTheDocument();
+
+    // a new player: Wing's example from the rules gives 1155
+    fireEvent.click(screen.getByRole('radio', { name: 'I’m new' }));
+    fireEvent.change(screen.getByLabelText('Match 3 opponent status'), { target: { value: 'rated' } });
+    fireEvent.click(screen.getByRole('button', { name: '+ Add a match' }));
+    ['1145', '1070', '1210', '1100'].forEach((r, i) => fireEvent.change(screen.getByLabelText(`Match ${i + 1} opponent rating`), { target: { value: r } }));
+    fireEvent.click(screen.getAllByRole('radio', { name: 'I won' })[2]);
+    fireEvent.click(screen.getAllByRole('radio', { name: 'I lost' })[3]);
+    expect(within(result).getByText('1,155')).toBeInTheDocument();
+    expect(within(result).getByText(/rule 3\.2/)).toBeInTheDocument();
+  });
+
+  test('picking yourself from the ratings page carries into the calculator', async () => {
+    window.history.replaceState(null, '', '/?player=7864');
+    mockFetch({ '/data/players.json': { body: playersDoc }, '/data/history/56.json': { body: {} } });
+    render(<App />);
+    await screen.findByRole('region', { name: 'WANG Eugene Zhen' });
+    fireEvent.click(screen.getByRole('link', { name: /Rating calculator/ }));
+    expect(await screen.findByPlaceholderText('e.g. 1500')).toHaveValue('4071');
+    expect(Object.fromEntries(new URLSearchParams(window.location.search))).toEqual({ page: 'calculator', player: '7864' });
+  });
 });

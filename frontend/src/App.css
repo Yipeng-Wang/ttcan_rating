@@ -242,6 +242,57 @@ select {
 .growth__chart { margin-top: 12px; }
 .growth__profile { margin-top: 8px; }
 
+/* ---- page tabs ------------------------------------------------------------ */
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 22px; }
+.tab {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 999px;
+  background: var(--surface); color: var(--text-secondary); font-weight: 800; text-decoration: none;
+  border: 2px solid var(--border);
+}
+.tab:hover { color: var(--text-primary); border-color: var(--accent-wash); }
+.tab.is-current { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+/* ---- calculator ----------------------------------------------------------- */
+.calculator { display: flex; flex-direction: column; gap: 22px; }
+.calc-setup { display: flex; flex-direction: column; gap: 18px; }
+.calc-me { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 640px; }
+.calc-me .search { width: 100%; max-width: 360px; }
+.calc-me > .muted { margin: 0; }
+.calc-input {
+  width: 9em; padding: 9px 12px; min-height: 44px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.calc-input--big { width: 10em; font-size: 1.2rem; }
+.calc-input:disabled { opacity: 0.5; }
+.calc-new-note { margin: 0; max-width: 40em; }
+.calc-stars .muted { margin-top: 6px; }
+.segmented--result button.is-win { background: var(--good); color: #fff; }
+.segmented--result button.is-loss { background: var(--bad); color: #fff; }
+
+.calc-matches { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.calc-match {
+  display: grid; grid-template-columns: 2.2em minmax(0, 1fr) 11em 40px; gap: 12px; align-items: center;
+  background: var(--surface-2); border-radius: 16px; padding: 12px 14px;
+}
+.calc-match__num {
+  width: 2em; height: 2em; border-radius: 50%; display: grid; place-items: center; font-weight: 800;
+  background: var(--surface); color: var(--text-muted);
+}
+.calc-match__who { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.calc-match__who .search { max-width: 360px; }
+.calc-match__name { margin: 0; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.calc-match__fields { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.calc-match__points { display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 2px; }
+.calc-match__remove { grid-column: 4; }
+.calc-points { font-family: var(--font-display); font-size: 1.8rem; font-weight: 600; line-height: 1; }
+.calc-points.is-up { color: var(--good); }
+.calc-points.is-down { color: var(--bad); }
+.calc-reason { font-size: 0.85rem; color: var(--text-muted); font-weight: 600; }
+.calc-add { margin-top: 14px; }
+.calc-summary h2 { margin-bottom: 12px; }
+.calc-footnote { margin-top: 14px; max-width: 52em; }
+.calc-tables__grid { display: flex; flex-wrap: wrap; gap: 16px 32px; margin-top: 8px; }
+.calc-tables caption { text-align: left; font-weight: 700; color: var(--text-secondary); padding-bottom: 4px; }
+
 /* ---- charts ------------------------------------------------------------- */
 .chart { width: 100%; }
 .chart-empty { padding: 32px 0; text-align: center; }
@@ -312,5 +363,17 @@ select {
   .board td { padding: 10px 8px; }
   .board .rank { width: 2.6em; }
   .search input { font-size: 1.05rem; padding: 14px 16px 14px 48px; }
+  .calc-match__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .calc-match__fields .filter:last-child { grid-column: 1 / -1; }
+  .calc-match__fields .calc-input, .calc-match__fields select { width: 100%; }
+  .calc-summary .tiles { grid-template-columns: 1fr 1fr; }
+  .calc-summary .tile--hero { grid-column: auto; }
+  .calc-match { grid-template-columns: 2.2em minmax(0, 1fr) 36px; padding: 12px; }
+  .calc-match__who { grid-column: 2 / 4; grid-row: 1; }
+  .calc-match__num { grid-row: 1; }
+  .calc-match__points { grid-column: 1 / 3; grid-row: 2; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 10px; text-align: left; }
+  .calc-match__remove { grid-column: 3; grid-row: 2; }
+  .calc-points { font-size: 1.5rem; }
+  .tabs { margin-top: -12px; }
   .nearby__list li { grid-template-columns: 3.2em 1fr auto auto; padding: 8px 10px; }
 }
