@@ -4,6 +4,7 @@ import {
   latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange,
 } from '../data';
 import GrowthMatches from './GrowthMatches';
+import RatingJourney from './RatingJourney';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const GROWTH_MAX_AGE = 13; // "Players who grew like you" is for U13 players
@@ -147,9 +148,9 @@ export default function PlayerCard({
 
       <NearbyPlayers group={group} player={player} onSelect={onSelect} />
 
-      {ready && history.data.length > 0 && player.age != null && player.age <= GROWTH_MAX_AGE && (
-        <GrowthMatches player={player} history={history.data} playersById={playersById} onSelect={onSelect} compact={isMobile} />
-      )}
+      {ready && history.data.length > 0 && (player.age != null && player.age <= GROWTH_MAX_AGE
+        ? <GrowthMatches player={player} history={history.data} playersById={playersById} onSelect={onSelect} compact={isMobile} />
+        : <RatingJourney history={history.data} compact={isMobile} />)}
 
       {history.status === 'error' && <p className="notice notice--error" role="alert">Couldn’t load rating history. {history.error}</p>}
     </section>
