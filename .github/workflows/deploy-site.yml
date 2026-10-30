@@ -36,5 +36,5 @@ jobs:
           npm test -- --watchAll=false
           npm run build
           npx gh-pages -d build \
-            -u "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>" \
+            -u "github-actions <41898282+github-actions@users.noreply.github.com>" \
             -r "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
