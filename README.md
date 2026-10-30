@@ -12,8 +12,9 @@ TTCAN rating site ──scrape──▶ frontend/public/data/*.json ──npm ru
 
 1. `backend/scrapping.py` reads the TTCAN rating listing (all players, all activity) and each player's page.
 2. It writes static JSON into `frontend/public/data/`:
-   - `players.json`: every player in the current rating period, keyed by TTCAN player ID.
+   - `players.json`: every player in the current rating period, keyed by TTCAN player ID, with their 12-month rating change (`growth`) where it can be compared fairly.
    - `history/<n>.json`: rating history, split into 64 shards by `player ID % 64`.
+   - `similar/<n>.json`: for each U13 player, three players of the same gender whose rating grew the same way at the same age (see `backend/trajectories.py`), sharded the same way.
 3. The React app loads `players.json` once, and loads one small history shard when you pick a player.
 
 No API keys or Google services are involved. The data files are committed, so the repo always holds the last published data.
@@ -45,6 +46,7 @@ Options:
 | `--fresh` | Ignore cached pages for this period |
 | `--force` | Publish even if the player count dropped by more than 10% |
 | `--out DIR` | Output directory (default `frontend/public/data`) |
+| `--rebuild-derived` | Only recompute 12-month growth and `similar/` from the published data, without scraping |
 
 Safety and resuming:
 
@@ -61,6 +63,8 @@ npm start          # http://localhost:3000/ttcan_rating
 npm test
 npm run deploy     # build and publish to the gh-pages branch
 ```
+
+Pushing frontend changes to `main` deploys the site automatically through `.github/workflows/deploy-site.yml`.
 
 ## Tests
 
