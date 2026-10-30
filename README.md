@@ -1,193 +1,79 @@
 # TTCAN Rating Analysis
 
-A comprehensive tool for scraping and analyzing TTCAN (Table Tennis Canada) player ratings with interactive visualizations.
+Rating distribution, top-100 lists and rating history for Table Tennis Canada (TTCAN) players.
 
-🌐 **Live Application**: https://yipeng-wang.github.io/ttcan_rating
+🌐 **Live application**: https://yipeng-wang.github.io/ttcan_rating
 
-## Features
-
-- **Data Scraping**: Automated scraping of TTCAN player ratings from official website
-- **Data Visualization**: Interactive histogram showing rating distribution
-- **Filtering**: Filter players by activity period (last N months)
-- **Real-time Updates**: Fetch latest data from Google Sheets
-- **Error Handling**: Robust error handling and validation
-- **Security**: Environment-based configuration for sensitive data
-
-## Project Structure
+## How it works
 
 ```
-ttcan_rating/
-├── backend/           # Python web scraper
-│   ├── scrapping.py   # Main scraper script
-│   └── requirements.txt
-├── frontend/          # React visualization app
-│   ├── src/
-│   │   └── App.jsx    # Main React component
-│   └── package.json
-├── shared/            # Shared utilities
-│   └── config.py      # Configuration management
-├── docs/              # Documentation
-└── .env.example       # Environment template
+TTCAN rating site ──scrape──▶ frontend/public/data/*.json ──npm run deploy──▶ GitHub Pages
 ```
 
-## Setup Instructions
+1. `backend/scrapping.py` reads the TTCAN rating listing (all players, all activity) and each player's page.
+2. It writes static JSON into `frontend/public/data/`:
+   - `players.json`: every player in the current rating period, keyed by TTCAN player ID.
+   - `history/<n>.json`: rating history, split into 64 shards by `player ID % 64`.
+3. The React app loads `players.json` once, and loads one small history shard when you pick a player.
 
-### Prerequisites
+No API keys or Google services are involved. The data files are committed, so the repo always holds the last published data.
 
-- Python 3.8+
-- Node.js 14+
-- Google Sheets API access
-- Google Cloud Service Account
-
-### Backend Setup
-
-1. Navigate to backend directory:
-   ```bash
-   cd backend
-   ```
-
-2. Create and activate virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Set up environment variables (see Configuration section)
-
-5. Run the scraper:
-   ```bash
-   python scrapping.py
-   ```
-
-### Frontend Setup
-
-1. Navigate to frontend directory:
-   ```bash
-   cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set up environment variables (see Configuration section)
-
-4. Start development server:
-   ```bash
-   npm start
-   ```
-
-## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the root directory based on `.env.example`:
-
-```bash
-# Backend Configuration
-TTCAN_BASE_URL=http://www.ttcan.ca/ratingSystem/ctta_ratings2.asp
-CATEGORY_CODE=1
-PERIOD_ISSUED=412
-SEX=F
-GOOGLE_SHEET_ID=your_google_sheet_id_here
-GOOGLE_SHEET_NAME=Sheet1
-GOOGLE_SERVICE_ACCOUNT_FILE=path/to/service-account.json
-
-# Frontend Configuration
-REACT_APP_GOOGLE_SHEET_ID=your_google_sheet_id_here
-REACT_APP_GOOGLE_SHEET_NAME=Sheet1
-REACT_APP_GOOGLE_API_KEY=your_google_api_key_here
-```
-
-### Google Sheets Setup
-
-1. Create a Google Sheet to store the data
-2. Enable Google Sheets API in Google Cloud Console
-3. Create a Service Account and download the JSON key
-4. Share the Google Sheet with the service account email
-5. Get a Google API key for the frontend
-
-## Usage
-
-### Running the Scraper
-
-The scraper fetches all TTCAN player ratings and stores them in Google Sheets:
+## Updating the data
 
 ```bash
 cd backend
-python scrapping.py                 # Basic scraping (players only)
-python scrapping.py --history       # Scrape players + rating history (slower)
-python scrapping.py --use-cache     # Use cached data instead of re-scraping
-python scrapping.py --resume        # Resume from last interrupted session
-python scrapping.py --status        # Show current session and upload status
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+python scrapping.py --history     # players + rating history (full refresh)
+python scrapping.py               # players only; existing history files are kept
 ```
 
-#### Command Line Options
+Then deploy the site (see below) and commit the changed files in `frontend/public/data/`.
 
-- `--history`: Fetch rating history for all players (significantly slower but provides historical data)
-- `--use-cache`: Use previously cached data instead of re-scraping (useful for retrying failed uploads)
-- `--resume`: Resume from the last interrupted scraping session
-- `--status`: Show progress and upload status of current session
-- `--help`, `-h`: Show help message with all available options
+### Automatic updates
 
-Features:
-- Automatic pagination through all rating pages
-- Retry logic for failed requests
-- Data validation and cleaning
-- Batch uploads to Google Sheets
-- Comprehensive logging
+`.github/workflows/update-data.yml` runs daily at 13:00 UTC. It checks the newest rating period on the TTCAN site and stops if that period is already published. When a new period appears, it scrapes players and history, commits the data to `main` and redeploys GitHub Pages. To start it by hand, go to the Actions tab, choose **Update ratings data**, then **Run workflow**. Tick "full refresh" to scrape even when the period hasn't changed.
 
-### Using the Frontend
+Options:
 
-The React app provides an interactive visualization:
+| Flag | Meaning |
+|---|---|
+| `--history` | Also scrape each player's rating history |
+| `--period N` | Rating period ID. Default: the newest period on the TTCAN site |
+| `--max-pages N` | Only scrape the first N listing pages (for testing) |
+| `--fresh` | Ignore cached pages for this period |
+| `--force` | Publish even if the player count dropped by more than 10% |
+| `--out DIR` | Output directory (default `frontend/public/data`) |
 
-1. Start the development server: `npm start`
-2. Open http://localhost:3000
-3. Use the month filter to adjust the time period
-4. View the rating distribution histogram
+Safety and resuming:
 
-## Data Flow
+- Every fetched page is cached in `backend/.cache/<period>/`. If a run is interrupted, run the same command again and it continues from the cache.
+- A failed or malformed page stops the run with an error. Partial data is never published.
+- New data is written to a staging folder and swapped in only after it passes checks. It is refused if the player count drops by more than 10% from the last run.
 
-1. **Scraper** → Fetches data from TTCAN website
-2. **Scraper** → Validates and cleans data
-3. **Scraper** → Uploads to Google Sheets
-4. **Frontend** → Fetches data from Google Sheets
-5. **Frontend** → Filters and visualizes data
+## Frontend
 
-## Error Handling
+```bash
+cd frontend
+npm install
+npm start          # http://localhost:3000/ttcan_rating
+npm test
+npm run deploy     # build and publish to the gh-pages branch
+```
 
-### Backend
-- Network request retries with exponential backoff
-- Data validation before processing
-- Comprehensive logging to files and console
-- Graceful handling of API rate limits
+## Tests
 
-### Frontend
-- Error boundary for React component crashes
-- Loading states and error messages
-- Input validation for user controls
-- Fallback UI for missing data
+```bash
+cd backend && python -m pytest tests      # parser and publishing tests, using saved TTCAN pages
+cd frontend && CI=true npm test
+```
 
-## Security
+## Source
 
-- Environment variables for sensitive data
-- Service account authentication
-- API key rotation support
-- Comprehensive .gitignore for secrets
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+TTCAN ratings are published at http://96.31.42.60/rating.aspx. The scraper reads the listing at
+`/ratingSystem/ctta_ratings3.asp` and player pages at `/ratingSystem/ctta_ratings1.asp`.
+Set `TTCAN_BASE_URL` in a `.env` file if the address changes again (see `.env.example`).
 
 ## License
 

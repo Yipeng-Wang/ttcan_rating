@@ -11,10 +11,10 @@ def debug_player_page(player_name=None):
             return
     
     # First, let's search for the player to get their link
-    base_url = "http://www.ttcan.ca/ratingSystem/ctta_ratings2.asp"
+    base_url = "http://96.31.42.60/ratingSystem/ctta_ratings2.asp"
     params = {
         "Category_code": "1",
-        "Period_Issued": "412",
+        "Period_Issued": "427", "activity": "ALL",
         "Sex": "",
         "Formv_ctta_ratings_Page": 1,
     }
@@ -45,11 +45,11 @@ def debug_player_page(player_name=None):
                         
                         # Now fetch the player's page
                         if player_link.startswith('/'):
-                            full_url = f"http://www.ttcan.ca{player_link}"
+                            full_url = f"http://96.31.42.60{player_link}"
                         elif player_link.startswith('http'):
                             full_url = player_link
                         else:
-                            full_url = f"http://www.ttcan.ca/ratingSystem/{player_link}"
+                            full_url = f"http://96.31.42.60/ratingSystem/{player_link}"
                         
                         print(f"Fetching: {full_url}")
                         player_resp = requests.get(full_url, timeout=15)

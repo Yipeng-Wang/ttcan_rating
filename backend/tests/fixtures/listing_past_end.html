@@ -1,0 +1,927 @@
+<html>
+<head>
+<title>Canadian Table Tennis Ranking</title>
+<link type="text/css" rel="stylesheet" href="/ratingSystem/ratingSystem.css"/>
+</head>
+<body>
+
+<!-- ****************** search panel *************** -->
+<table style="width:700px;" cellpadding="0" cellspacing="0">
+  <tr>
+    <td valign="top" style="width:700px; text-align:center; vertical-align:top;">
+
+      
+      <form method="GET" action="ctta_ratings3.asp" name="Search" style="margin:0; padding:0;">
+        <input type="hidden" name="FormName" value="Search">
+        <input type="hidden" name="FormAction" value="search"/>
+
+        <table class="search" width="700px" cellpadding="0" cellspacing="0">
+          
+          <tr>
+            <td style="padding:8px 0 4px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td class="searchField" style="white-space:nowrap;">&nbsp;Province:&nbsp;</td>
+                  <td class="searchFieldProvTd">
+                    <select name="Prov" class="searchFieldProv">
+                      
+                      <option value="" >All</option>
+                      
+                      <option value="AB" >Alberta</option>
+                      
+                      <option value="BC" >British Columbia</option>
+                      
+                      <option value="FO" >Foreign</option>
+                      
+                      <option value="MB" >Manitoba</option>
+                      
+                      <option value="NB" >New Brunswick</option>
+                      
+                      <option value="NL" >Newfoundland & Labrador</option>
+                      
+                      <option value="NT" >Northwest Territories</option>
+                      
+                      <option value="NS" >Nova Scotia</option>
+                      
+                      <option value="NU" >Nunavut</option>
+                      
+                      <option value="ON" >Ontario</option>
+                      
+                      <option value="PE" >Prince Edward Island</option>
+                      
+                      <option value="QC" >Québec</option>
+                      
+                      <option value="SK" >Saskatchewan</option>
+                      
+                      <option value="US" >United States</option>
+                      
+                      <option value="YK" >Yukon</option>
+                      
+                    </select>
+                  </td>
+
+                  <td class="searchField" style="white-space:nowrap; padding-left:12px;">Gender:&nbsp;</td>
+                  <td class="searchFieldGenderTd">
+                    <select name="Sex" class="searchFieldGender">
+                      
+                      <option value="" >All</option>
+                      
+                      <option value="M" >Male</option>
+                      
+                      <option value="F" >Female</option>
+                      
+                    </select>
+                  </td>
+
+                  <td class="searchField" style="white-space:nowrap; padding-left:12px;">Region:&nbsp;</td>
+                  <td class="searchFieldRegTd">
+                    <select name="Reg" class="searchFieldReg">
+                      
+                      <option value="" >All Regions</option>
+                      
+                      <option value="ATL" >Atlantic Canada </option>
+                      
+                      <option value="CEN" >Central Canada </option>
+                      
+                      <option value="WES" >Western Canada </option>
+                      
+                    </select>
+                  </td>
+
+                  <td class="searchField" style="white-space:nowrap; padding-left:12px;">Period:&nbsp;</td>
+                  <td class="searchFieldPeriodTd">
+                    <select name="Period_Issued" class="searchFieldPeriod">
+                      
+                      <option value="" >All Periods</option>
+                      
+                      <option value="427" SELECTED>October 7, 2026</option>
+                      
+                      <option value="426" >September 7, 2026</option>
+                      
+                      <option value="425" >August 4, 2026</option>
+                      
+                      <option value="424" >July 10, 2026</option>
+                      
+                      <option value="423" >June 8, 2026</option>
+                      
+                      <option value="422" >May 5, 2026</option>
+                      
+                      <option value="421" >April 5, 2026</option>
+                      
+                      <option value="420" >March 7, 2026</option>
+                      
+                      <option value="419" >February 7, 2026</option>
+                      
+                      <option value="418" >January 5, 2026</option>
+                      
+                      <option value="417" >December 5, 2025</option>
+                      
+                      <option value="416" >November 5, 2025</option>
+                      
+                      <option value="415" >October 7, 2025</option>
+                      
+                      <option value="414" >September 6, 2025</option>
+                      
+                      <option value="413" >August 3, 2025</option>
+                      
+                      <option value="412" >July 6, 2025</option>
+                      
+                      <option value="411" >June 6, 2025</option>
+                      
+                      <option value="410" >May 6, 2025</option>
+                      
+                      <option value="409" >April 6, 2025</option>
+                      
+                      <option value="408" >March 5, 2025</option>
+                      
+                      <option value="407" >February 6, 2025</option>
+                      
+                      <option value="406" >January 6, 2025</option>
+                      
+                      <option value="405" >December 5, 2024</option>
+                      
+                      <option value="404" >November 6, 2024</option>
+                      
+                      <option value="403" >October 5, 2024</option>
+                      
+                      <option value="402" >September 6, 2024</option>
+                      
+                      <option value="401" >August 6, 2024</option>
+                      
+                      <option value="400" >July 6, 2024</option>
+                      
+                      <option value="399" >June 6, 2024</option>
+                      
+                      <option value="398" >May 5, 2024</option>
+                      
+                      <option value="397" >April 5, 2024</option>
+                      
+                      <option value="396" >March 5, 2024</option>
+                      
+                      <option value="395" >February 5, 2024</option>
+                      
+                      <option value="394" >January 6, 2024</option>
+                      
+                      <option value="393" >December 5, 2023</option>
+                      
+                      <option value="392" >November 5, 2023</option>
+                      
+                      <option value="391" >October 5, 2023</option>
+                      
+                      <option value="390" >September 6, 2023</option>
+                      
+                      <option value="389" >August 6, 2023</option>
+                      
+                      <option value="388" >July 6, 2023</option>
+                      
+                      <option value="387" >June 6, 2023</option>
+                      
+                      <option value="386" >May 5, 2023</option>
+                      
+                      <option value="385" >April 5, 2023</option>
+                      
+                      <option value="384" >March 5, 2023</option>
+                      
+                      <option value="383" >February 5, 2023</option>
+                      
+                      <option value="382" >January 5, 2023</option>
+                      
+                      <option value="381" >December 5, 2022</option>
+                      
+                      <option value="380" >November 5, 2022</option>
+                      
+                      <option value="379" >October 5, 2022</option>
+                      
+                      <option value="378" >September 5, 2022</option>
+                      
+                      <option value="377" >August 5, 2022</option>
+                      
+                      <option value="376" >July 5, 2022</option>
+                      
+                      <option value="375" >June 5, 2022</option>
+                      
+                      <option value="374" >May 5, 2022</option>
+                      
+                      <option value="373" >April 5, 2022</option>
+                      
+                      <option value="372" >March 5, 2022</option>
+                      
+                      <option value="371" >February 5, 2022</option>
+                      
+                      <option value="370" >January 5, 2022</option>
+                      
+                      <option value="369" >December 5, 2021</option>
+                      
+                      <option value="368" >November 5, 2021</option>
+                      
+                      <option value="367" >October 5, 2021</option>
+                      
+                      <option value="366" >September 3, 2021</option>
+                      
+                      <option value="365" >May 1, 2020</option>
+                      
+                      <option value="364" >April 1, 2020</option>
+                      
+                      <option value="363" >March 1, 2020</option>
+                      
+                      <option value="362" >February 1, 2020</option>
+                      
+                      <option value="361" >January 1, 2020</option>
+                      
+                      <option value="360" >December 1, 2019</option>
+                      
+                      <option value="359" >November 1, 2019</option>
+                      
+                      <option value="358" >October 1, 2019</option>
+                      
+                      <option value="357" >September 1, 2019</option>
+                      
+                      <option value="356" >August 1, 2019</option>
+                      
+                      <option value="355" >July 1, 2019</option>
+                      
+                      <option value="354" >June 1, 2019</option>
+                      
+                      <option value="353" >May 1, 2019</option>
+                      
+                      <option value="352" >April 1, 2019</option>
+                      
+                      <option value="351" >March 1, 2019</option>
+                      
+                      <option value="350" >February 1, 2019</option>
+                      
+                      <option value="349" >January 1, 2019</option>
+                      
+                      <option value="348" >December 1, 2018</option>
+                      
+                      <option value="347" >November 1, 2018</option>
+                      
+                      <option value="346" >October 1, 2018</option>
+                      
+                      <option value="345" >September 1, 2018</option>
+                      
+                      <option value="344" >August 1, 2018</option>
+                      
+                      <option value="343" >July 1, 2018</option>
+                      
+                      <option value="342" >June 1, 2018</option>
+                      
+                      <option value="341" >May 1, 2018</option>
+                      
+                      <option value="340" >April 1, 2018</option>
+                      
+                      <option value="339" >March 1, 2018</option>
+                      
+                      <option value="338" >February 1, 2018</option>
+                      
+                      <option value="337" >January 1, 2018</option>
+                      
+                      <option value="336" >December 1, 2017</option>
+                      
+                      <option value="335" >November 1, 2017</option>
+                      
+                      <option value="334" >October 1, 2017</option>
+                      
+                      <option value="333" >September 1, 2017</option>
+                      
+                      <option value="332" >August 1, 2017</option>
+                      
+                      <option value="331" >July 1, 2017</option>
+                      
+                      <option value="330" >June 1, 2017</option>
+                      
+                      <option value="329" >May 1, 2017</option>
+                      
+                      <option value="328" >April 1, 2017</option>
+                      
+                      <option value="327" >March 1, 2017</option>
+                      
+                      <option value="326" >February 1, 2017</option>
+                      
+                      <option value="325" >January 1, 2017</option>
+                      
+                      <option value="324" >December 1, 2016</option>
+                      
+                      <option value="323" >November 1, 2016</option>
+                      
+                      <option value="322" >October 1, 2016</option>
+                      
+                      <option value="321" >September 1, 2016</option>
+                      
+                      <option value="320" >August 1, 2016</option>
+                      
+                      <option value="319" >July 10, 2016</option>
+                      
+                      <option value="318" >June 1, 2016</option>
+                      
+                      <option value="317" >May 1, 2016</option>
+                      
+                      <option value="316" >April 1, 2016</option>
+                      
+                      <option value="315" >March 1, 2016</option>
+                      
+                      <option value="314" >February 1, 2016</option>
+                      
+                      <option value="313" >January 1, 2016</option>
+                      
+                      <option value="312" >December 1, 2015</option>
+                      
+                      <option value="311" >November 1, 2015</option>
+                      
+                      <option value="310" >September 1, 2015</option>
+                      
+                      <option value="309" >July 15, 2015</option>
+                      
+                      <option value="308" >July 1, 2015</option>
+                      
+                      <option value="307" >June 1, 2015</option>
+                      
+                      <option value="306" >May 1, 2015</option>
+                      
+                      <option value="305" >April 1, 2015</option>
+                      
+                      <option value="304" >March 1, 2015</option>
+                      
+                      <option value="303" >February 3, 2015</option>
+                      
+                      <option value="302" >January 1, 2015</option>
+                      
+                      <option value="301" >December 1, 2014</option>
+                      
+                      <option value="300" >November 1, 2014</option>
+                      
+                      <option value="299" >October 1, 2014</option>
+                      
+                      <option value="298" >September 2, 2014</option>
+                      
+                      <option value="297" ></option>
+                      
+                      <option value="296" >September 2, 2014</option>
+                      
+                      <option value="295" >August 1, 2014</option>
+                      
+                      <option value="294" >July 1, 2014</option>
+                      
+                      <option value="293" >June 1, 2014</option>
+                      
+                      <option value="292" >May 1, 2014</option>
+                      
+                      <option value="291" >April 1, 2014</option>
+                      
+                      <option value="290" >March 3, 2014</option>
+                      
+                      <option value="289" >February 1, 2014</option>
+                      
+                      <option value="288" >January 1, 2014</option>
+                      
+                      <option value="287" >December 1, 2013</option>
+                      
+                      <option value="286" >November 1, 2013</option>
+                      
+                      <option value="285" >October 1, 2013</option>
+                      
+                      <option value="284" >September 1, 2013</option>
+                      
+                      <option value="283" >July 15, 2013</option>
+                      
+                      <option value="282" >June 1, 2013</option>
+                      
+                      <option value="281" >May 1, 2013</option>
+                      
+                      <option value="280" >April 3, 2013</option>
+                      
+                      <option value="279" >March 6, 2013</option>
+                      
+                      <option value="278" >February 1, 2013</option>
+                      
+                      <option value="277" >January 1, 2013</option>
+                      
+                      <option value="276" >December 1, 2012</option>
+                      
+                      <option value="275" >November 1, 2012</option>
+                      
+                      <option value="274" >October 1, 2012</option>
+                      
+                      <option value="273" >September 4, 2012</option>
+                      
+                      <option value="272" >August 1, 2012</option>
+                      
+                      <option value="271" >July 1, 2012</option>
+                      
+                      <option value="270" >June 1, 2012</option>
+                      
+                      <option value="269" >May 1, 2012</option>
+                      
+                      <option value="268" >April 2, 2012</option>
+                      
+                      <option value="267" >March 1, 2012</option>
+                      
+                      <option value="266" >February 1, 2012</option>
+                      
+                      <option value="265" >January 1, 2012</option>
+                      
+                      <option value="264" >December 1, 2011</option>
+                      
+                      <option value="263" >November 1, 2011</option>
+                      
+                      <option value="262" >October 1, 2011</option>
+                      
+                      <option value="261" >September 1, 2011</option>
+                      
+                      <option value="260" >July 25, 2011</option>
+                      
+                      <option value="259" >July 1, 2011</option>
+                      
+                      <option value="258" >June 1, 2011</option>
+                      
+                      <option value="257" >May 5, 2011</option>
+                      
+                      <option value="256" >April 5, 2011</option>
+                      
+                      <option value="255" >March 1, 2011</option>
+                      
+                      <option value="254" >February 1, 2011</option>
+                      
+                      <option value="253" ></option>
+                      
+                      <option value="252" >January 1, 2011</option>
+                      
+                      <option value="251" >December 1, 2010</option>
+                      
+                      <option value="250" >November 1, 2010</option>
+                      
+                      <option value="249" >October 1, 2010</option>
+                      
+                      <option value="248" >September 1, 2010</option>
+                      
+                      <option value="247" >August 1, 2010</option>
+                      
+                      <option value="246" >July 1, 2010</option>
+                      
+                      <option value="245" >June 1, 2010</option>
+                      
+                      <option value="244" >May 1, 2010</option>
+                      
+                      <option value="243" >April 1, 2010</option>
+                      
+                      <option value="242" >March 1, 2010</option>
+                      
+                      <option value="241" >February 1, 2010</option>
+                      
+                      <option value="240" >January 1, 2010</option>
+                      
+                      <option value="239" >December 1, 2009</option>
+                      
+                      <option value="238" >November 1, 2009</option>
+                      
+                      <option value="237" >October 1, 2009</option>
+                      
+                      <option value="236" >September 1, 2009</option>
+                      
+                      <option value="235" >August 1, 2009</option>
+                      
+                      <option value="234" >July 1, 2009</option>
+                      
+                      <option value="233" >June 1, 2009</option>
+                      
+                      <option value="232" >May 1, 2009</option>
+                      
+                      <option value="231" >April 1, 2009</option>
+                      
+                      <option value="230" >March 1, 2009</option>
+                      
+                      <option value="229" >February 1, 2009</option>
+                      
+                      <option value="228" >January 1, 2009</option>
+                      
+                      <option value="227" >December 1, 2008</option>
+                      
+                      <option value="226" >November 1, 2008</option>
+                      
+                      <option value="225" >October 1, 2008</option>
+                      
+                      <option value="224" >September 1, 2008</option>
+                      
+                      <option value="223" >August 1, 2008</option>
+                      
+                      <option value="222" >June 2, 2008</option>
+                      
+                      <option value="221" >May 1, 2008</option>
+                      
+                      <option value="220" >April 1, 2008</option>
+                      
+                      <option value="219" >March 1, 2008</option>
+                      
+                      <option value="218" >February 1, 2008</option>
+                      
+                      <option value="217" >January 1, 2008</option>
+                      
+                      <option value="216" >December 3, 2007</option>
+                      
+                      <option value="215" >November 1, 2007</option>
+                      
+                      <option value="214" >October 1, 2007</option>
+                      
+                      <option value="213" >September 1, 2007</option>
+                      
+                      <option value="212" >July 20, 2007</option>
+                      
+                      <option value="211" >June 1, 2007</option>
+                      
+                      <option value="210" >May 1, 2007</option>
+                      
+                      <option value="209" >April 1, 2007</option>
+                      
+                      <option value="208" >March 1, 2007</option>
+                      
+                      <option value="207" >February 1, 2007</option>
+                      
+                      <option value="206" >January 1, 2007</option>
+                      
+                      <option value="205" >December 1, 2006</option>
+                      
+                      <option value="204" >November 2, 2006</option>
+                      
+                      <option value="203" >November 1, 2006</option>
+                      
+                      <option value="202" >October 1, 2006</option>
+                      
+                      <option value="201" >September 1, 2006</option>
+                      
+                      <option value="200" >August 1, 2006</option>
+                      
+                      <option value="199" >July 1, 2006</option>
+                      
+                      <option value="198" >June 1, 2006</option>
+                      
+                      <option value="197" >May 1, 2006</option>
+                      
+                      <option value="196" >April 1, 2006</option>
+                      
+                      <option value="195" >March 1, 2006</option>
+                      
+                      <option value="194" >February 1, 2006</option>
+                      
+                      <option value="193" >January 1, 2006</option>
+                      
+                      <option value="192" >December 1, 2005</option>
+                      
+                      <option value="191" >November 1, 2005</option>
+                      
+                      <option value="190" >October 1, 2005</option>
+                      
+                      <option value="189" >September 1, 2005</option>
+                      
+                      <option value="183" >June 1, 2005</option>
+                      
+                      <option value="182" >May 1, 2005</option>
+                      
+                      <option value="181" >April 1, 2005</option>
+                      
+                      <option value="180" >March 1, 2005</option>
+                      
+                      <option value="179" >February 1, 2005</option>
+                      
+                      <option value="178" >January 1, 2005</option>
+                      
+                      <option value="177" >December 1, 2004</option>
+                      
+                      <option value="176" >2004_10</option>
+                      
+                      <option value="175" >2004_09</option>
+                      
+                      <option value="174" >2004_08</option>
+                      
+                      <option value="173" >2004_07</option>
+                      
+                      <option value="172" >2004_06</option>
+                      
+                      <option value="171" >2004_05</option>
+                      
+                      <option value="170" >2004_04</option>
+                      
+                      <option value="169" >2004_03</option>
+                      
+                      <option value="168" >2004_02</option>
+                      
+                      <option value="167" >2004_01</option>
+                      
+                      <option value="166" >2003_11</option>
+                      
+                      <option value="165" >2003_10</option>
+                      
+                      <option value="164" >2003_09</option>
+                      
+                      <option value="163" >2003_08</option>
+                      
+                      <option value="162" >2003_07</option>
+                      
+                      <option value="161" >2003_06</option>
+                      
+                      <option value="160" >2003_05</option>
+                      
+                      <option value="159" >2003_04</option>
+                      
+                      <option value="158" >2003_03</option>
+                      
+                      <option value="157" >2003_02</option>
+                      
+                      <option value="156" >2003_01</option>
+                      
+                      <option value="155" >2002_10</option>
+                      
+                      <option value="154" >2002_09</option>
+                      
+                      <option value="153" >2002_08</option>
+                      
+                      <option value="152" >2002_07</option>
+                      
+                      <option value="151" >2002_06</option>
+                      
+                      <option value="150" >2002_05</option>
+                      
+                      <option value="149" >2002_04</option>
+                      
+                      <option value="148" >2002_03</option>
+                      
+                      <option value="147" >2002_02</option>
+                      
+                      <option value="146" >2002_01</option>
+                      
+                      <option value="145" >2001_12</option>
+                      
+                      <option value="144" >2001_11</option>
+                      
+                      <option value="143" >2001_10</option>
+                      
+                      <option value="142" >2001_09</option>
+                      
+                      <option value="141" >2001_08</option>
+                      
+                      <option value="140" >2001_07</option>
+                      
+                      <option value="139" >2001_06</option>
+                      
+                      <option value="138" >2001_05</option>
+                      
+                      <option value="137" >2001_04</option>
+                      
+                      <option value="136" >2001_03</option>
+                      
+                      <option value="135" >2001_02</option>
+                      
+                      <option value="134" >2001_01</option>
+                      
+                      <option value="133" >2000_12</option>
+                      
+                      <option value="132" >2000_11</option>
+                      
+                      <option value="131" >2000_10</option>
+                      
+                      <option value="130" >2000_09</option>
+                      
+                      <option value="129" >2000_08</option>
+                      
+                      <option value="128" >2000_07</option>
+                      
+                      <option value="127" >2000_06</option>
+                      
+                      <option value="126" >2000_05</option>
+                      
+                      <option value="125" >2000_04</option>
+                      
+                      <option value="124" >2000_03</option>
+                      
+                      <option value="123" >2000_02</option>
+                      
+                      <option value="122" >2000_01</option>
+                      
+                      <option value="121" >1999_12</option>
+                      
+                      <option value="120" >1999_11</option>
+                      
+                      <option value="119" >1999_10</option>
+                      
+                      <option value="118" >1999_08</option>
+                      
+                      <option value="117" >1999_07</option>
+                      
+                      <option value="116" >1999_06</option>
+                      
+                      <option value="115" >1999_05</option>
+                      
+                      <option value="114" >1999_04</option>
+                      
+                      <option value="113" >1999_03</option>
+                      
+                      <option value="112" >1999_02</option>
+                      
+                      <option value="111" >1999_01</option>
+                      
+                      <option value="110" >1998_12</option>
+                      
+                      <option value="109" >1998_11</option>
+                      
+                      <option value="108" >1998_10</option>
+                      
+                      <option value="107" >1998_08</option>
+                      
+                      <option value="106" >1998_07</option>
+                      
+                      <option value="105" >1998_06</option>
+                      
+                      <option value="104" >1998_05</option>
+                      
+                      <option value="103" >1998_04</option>
+                      
+                      <option value="102" >1998_03</option>
+                      
+                      <option value="101" >1998_02</option>
+                      
+                      <option value="100" >1998_01</option>
+                      
+                    </select>
+                  </td>
+
+                  <td class="goField" style="padding-left:12px;">
+                    <input type="submit" value="GO" class="go"/>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:4px 0 8px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+ <tr>
+  <td class="searchField" style="white-space:nowrap;">&nbsp;Category:&nbsp;</td>
+  <td class="searchFieldCatTd">
+    <select name="Category_code" class="searchFieldCat">
+      
+      <option value="0" >(No DOB)</option>
+      
+      <option value="39" >*</option>
+      
+      <option value="1" SELECTED>All/Tous</option>
+      
+      <option value="5" >CA05</option>
+      
+      <option value="6" >CA06</option>
+      
+      <option value="7" >CA07</option>
+      
+      <option value="8" >CA08</option>
+      
+      <option value="9" >CA09</option>
+      
+      <option value="10" >CA10</option>
+      
+      <option value="11" >CA11</option>
+      
+      <option value="12" >CA12</option>
+      
+      <option value="13" >CA13</option>
+      
+      <option value="14" >CA14</option>
+      
+      <option value="15" >CA15</option>
+      
+      <option value="16" >JR16</option>
+      
+      <option value="17" >JR17</option>
+      
+      <option value="18" >JR18</option>
+      
+      <option value="19" >JR19</option>
+      
+      <option value="40" >VE40</option>
+      
+      <option value="50" >VE50</option>
+      
+      <option value="60" >VE60</option>
+      
+      <option value="70" >VE70</option>
+      
+      <option value="80" >VE80</option>
+      
+      <option value="20" >YO20</option>
+      
+      <option value="21" >YO21</option>
+      
+      <option value="22" >YO22</option>
+      
+      <option value="23" >YO23</option>
+      
+    </select>
+  </td>
+
+  <td class="searchField" style="white-space:nowrap; padding-left:12px;">Search by Player Name:&nbsp;</td>
+  <td class="searchFieldNameTd">
+    <input type="text" name="Full_Name" maxlength="511" value="" class="searchFieldName" style="width:180px;"/>
+  
+
+  &nbsp;&nbsp;<font color = "ff0000">Ratings: </font>&nbsp;
+  
+    <select name="activity" class="searchFieldAct">
+      
+      <option value="ALL" SELECTED>ALL</option>
+      
+      <option value="60" >60 M</option>
+      
+      <option value="48" >48 M</option>
+      
+      <option value="36" >36 M</option>
+      
+      <option value="24" >24 M</option>
+      
+      <option value="12" >12 M</option>
+      
+      <option value="6" >6 M</option>
+      
+    </select>
+  </td>
+</tr>
+
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </form>
+      
+
+    </td>
+  </tr>
+</table>
+<br />
+<!-- *********************** end of search panel ****************** -->
+
+<!-- *********************** beginning of content panel *************** -->
+<table class="result" cellpadding="0" cellspacing="0">
+<!-- <table class="result" style="width:100%;" cellpadding="0" cellspacing="0"> -->
+  <tr>
+    <td valign="top" class="result">
+
+      
+      
+
+      
+      <table class="resultTable" style="width:700px;" cellpadding="0" cellspacing="0">
+        <tr>
+          <td class="resultTitle">Serial</td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=2&Formv_ctta_ratings_Sorted=&">Name</a></td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=3&Formv_ctta_ratings_Sorted=&">Prov</a></td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=4&Formv_ctta_ratings_Sorted=&">Gender</a> &nbsp;</td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=5&Formv_ctta_ratings_Sorted=&">Rating</a></td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=6&Formv_ctta_ratings_Sorted=&">Period</a></td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=7&Formv_ctta_ratings_Sorted=&">Last Played</a></td>
+          <td class="resultTitle"><a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Sorting=9&Formv_ctta_ratings_Sorted=&">Temp</a></td>
+        </tr>
+
+        
+        <tr onmouseout="this.style.backgroundColor=this.originalstyle;" onmouseover="this.originalstyle=this.style.backgroundColor;this.style.backgroundColor='#FF9900';">
+          <td class="resultRow">&nbsp;&nbsp;</td>
+          <td class="resultRow">&nbsp;<a target="_self" href="?Player_ID=&Period=&"></a></td>
+          <td class="resultRow">&nbsp;&nbsp;</td>
+          <td class="resultRow">&nbsp;&nbsp;</td>
+          <td class="resultRow">&nbsp;&nbsp;&nbsp;</td>
+          <td class="resultRow">&nbsp;&nbsp;</td>
+          <td class="resultRow">&nbsp;&nbsp;</td>
+          <td class="resultRow">&nbsp;&nbsp;</td>
+        </tr>
+        
+
+        
+
+        
+        <tr>
+          <td colspan="8" class="resultFooter">
+            <a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Page=1#v_ctta_ratings">First</a>&nbsp;&nbsp;
+            <a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Page=80#v_ctta_ratings">Previous</a>&nbsp;&nbsp;
+            [
+            
+            <a href="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Page=80#v_ctta_ratings"><80</a>&nbsp;
+            
+            <a href_="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Page=81#v_ctta_ratings">81</a>&nbsp;
+            
+            of 80
+            ]&nbsp;&nbsp;
+            <a href_="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Page=#v_ctta_ratings">Next</a>&nbsp;&nbsp;
+            <a href_="ctta_ratings3.asp?activity=ALL&Category_code=1&Full_Name=&Period_Issued=427&Prov=&Reg=&Region=&Sex=&Formv_ctta_ratings_Page=last#v_ctta_ratings">Last</a>
+          </td>
+        </tr>
+        
+      </table>
+      
+
+      
+      
+
+    </td>
+  </tr>
+</table>
+<!-- ********************** end of content panel **************** -->
+
+</body>
+</html>

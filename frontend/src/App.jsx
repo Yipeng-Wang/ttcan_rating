@@ -1,11 +1,44 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 // ====== CONFIGURATION ======
-const SHEET_ID = process.env.REACT_APP_GOOGLE_SHEET_ID;
-const SHEET_NAME = process.env.REACT_APP_GOOGLE_SHEET_NAME || "Sheet1";
-const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY;
-const SHEET_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
-const HISTORY_SHEET_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/RatingHistory?key=${API_KEY}`;
+// Static JSON published by backend/scrapping.py into public/data
+const DATA_URL = `${process.env.PUBLIC_URL || ''}/data`;
+let historyShardCount = 64;
+const historyShardCache = new Map(); // shard number -> Promise<{ [playerId]: [[periodId, isoDate, rating], ...] }>
+
+// '2026-09-07' -> '9/7/2026', the format the rest of the UI works with
+export function isoToUsDate(iso) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  return match ? `${Number(match[2])}/${Number(match[3])}/${match[1]}` : '';
+}
+
+export function toAppPlayer(raw, currentYear = new Date().getFullYear()) {
+  return {
+    id: raw.id ? String(raw.id) : null,
+    name: raw.name || '',
+    province: raw.province || '',
+    gender: raw.gender || '',
+    rating: Number(raw.rating),
+    lastPlayed: isoToUsDate(raw.lastPlayed),
+    age: raw.birthYear ? String(currentYear - raw.birthYear) : '',
+  };
+}
+
+export async function loadPlayerHistory(playerId) {
+  if (!playerId) return [];
+  const shard = Number(playerId) % historyShardCount;
+  if (!historyShardCache.has(shard)) {
+    const request = fetch(`${DATA_URL}/history/${shard}.json`).then(response => {
+      if (response.status === 404) return {}; // no player in this shard has history
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    });
+    historyShardCache.set(shard, request);
+    request.catch(() => historyShardCache.delete(shard)); // allow a retry after a failure
+  }
+  const entries = (await historyShardCache.get(shard))[playerId] || [];
+  return entries.map(([, date, rating]) => ({ period: date, rating, lastPlayed: date }));
+}
 
 function validatePlayerData(player) {
   return (
@@ -25,7 +58,7 @@ function isWithinLastNMonths(dateStr, months) {
   if (!dateStr || typeof dateStr !== 'string') return false;
   
   try {
-    const [month, day, year] = dateStr.split(/[\/\-]/).map(Number);
+    const [month, day, year] = dateStr.split(/[/-]/).map(Number);
     if (!year || !month || !day || year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
       return false;
     }
@@ -97,7 +130,6 @@ const useWindowSize = () => {
 };
 
 const isMobile = (width) => width <= 768;
-const isTablet = (width) => width > 768 && width <= 1024;
 
 // Memoized Rating History Chart Component for better performance
 const RatingHistoryChart = React.memo(({ 
@@ -500,10 +532,14 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [playerName, setPlayerName] = useState('');
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
+  const [historyError, setHistoryError] = useState(null);
+  const [compareHistoryError, setCompareHistoryError] = useState(null);
+  const [dataInfo, setDataInfo] = useState(null);
   const [filteredNames, setFilteredNames] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedGender, setSelectedGender] = useState('all');
-  const [genderCounts, setGenderCounts] = useState({ F: 0, M: 0 });
+  const [, setGenderCounts] = useState({ F: 0, M: 0 });
   const [selectedAge, setSelectedAge] = useState('all');
   const [selectedProvince, setSelectedProvince] = useState('all');
   const [provinceCounts, setProvinceCounts] = useState({});
@@ -514,8 +550,6 @@ function App() {
   const [playerHistory, setPlayerHistory] = useState([]);
   const [showHistory, setShowHistory] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyCache, setHistoryCache] = useState(new Map());
-  const [lastHistoryFetch, setLastHistoryFetch] = useState(0);
   
   // Comparison states
   const [comparePlayerName, setComparePlayerName] = useState('');
@@ -523,7 +557,7 @@ function App() {
   const [compareHistoryLoading, setCompareHistoryLoading] = useState(false);
   const [startCompareYear, setStartCompareYear] = useState('');
   const [startCompareMonth, setStartCompareMonth] = useState('');
-  const [showComparison, setShowComparison] = useState(false);
+  const [, setShowComparison] = useState(false);
   
   // Compare autocomplete states
   const [compareFilteredNames, setCompareFilteredNames] = useState([]);
@@ -559,22 +593,12 @@ function App() {
   }, [playerHistory, comparePlayerHistory]);
 
   useEffect(() => {
-    if (!SHEET_ID || !API_KEY) {
-      setError('Missing configuration. Please check environment variables.');
-      setLoading(false);
-      return;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!SHEET_ID || !API_KEY) return;
-
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(SHEET_URL);
+        const response = await fetch(`${DATA_URL}/players.json`);
         
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -582,30 +606,17 @@ function App() {
         
         const json = await response.json();
         
-        if (!json.values || !Array.isArray(json.values)) {
-          throw new Error('Invalid data format from Google Sheets');
+        if (!json || !Array.isArray(json.players)) {
+          throw new Error('Invalid player data format');
         }
+        if (json.historyShards) historyShardCount = json.historyShards;
         
-        const rows = json.values.slice(1); // skip header
-        const parsed = rows
-          .map(cols => {
-            if (!cols || cols.length < 6) return null;
-            
-            const player = {
-              name: cols[0] || '',
-              province: cols[1] || '',
-              gender: cols[2] || '',
-              rating: parseInt(cols[3], 10),
-              period: cols[4] || '',
-              lastPlayed: cols[5] || '',
-              age: cols[6] || '',
-            };
-            
-            return validatePlayerData(player) ? player : null;
-          })
-          .filter(player => player !== null);
+        const parsed = json.players
+          .map(raw => toAppPlayer(raw))
+          .filter(validatePlayerData);
         
         setData(parsed);
+        setDataInfo({ period: json.period, generatedAt: json.generatedAt });
         
         // Calculate gender distribution
         const genderCount = parsed.reduce((acc, player) => {
@@ -633,7 +644,7 @@ function App() {
     };
 
     fetchData();
-  }, [SHEET_URL]);
+  }, []);
 
   // Memoize filtered data to avoid re-filtering on every render
   const filteredData = useMemo(() => {
@@ -661,6 +672,7 @@ function App() {
             case 'u15': if (age > 15) return false; break;
             case 'u17': if (age > 17) return false; break;
             case 'u19': if (age > 19) return false; break;
+            default: break;
           }
         }
         
@@ -679,7 +691,7 @@ function App() {
       setActivePlayerCount(filteredData.length);
       
       // Update top 100 players list
-      const sortedPlayers = filteredData
+      const sortedPlayers = [...filteredData]
         .sort((a, b) => b.rating - a.rating)
         .slice(0, 100)
         .map((player, index) => ({
@@ -689,9 +701,9 @@ function App() {
       setTopPlayers(sortedPlayers);
       
       // Auto-scroll to player if they're in the top 100
-      if (playerName && sortedPlayers.some(p => p.name === playerName)) {
+      if (selectedPlayerId && sortedPlayers.some(p => p.id === selectedPlayerId)) {
         setTimeout(() => {
-          const playerElement = document.querySelector(`[data-player-name="${playerName}"]`);
+          const playerElement = document.querySelector(`[data-player-id="${selectedPlayerId}"]`);
           if (playerElement) {
             playerElement.scrollIntoView({
               behavior: 'smooth',
@@ -704,7 +716,7 @@ function App() {
       console.error('Error filtering data:', err);
       setError('Error processing data');
     }
-  }, [filteredData, playerName]);
+  }, [filteredData, selectedPlayerId]);
 
   const handleMonthsChange = (e) => {
     const value = e.target.value;
@@ -734,7 +746,7 @@ function App() {
         
         const parseDate = (dateStr) => {
           if (!dateStr) return new Date(0);
-          const parts = dateStr.split(/[\/\-]/);
+          const parts = dateStr.split(/[/-]/);
           if (parts.length === 3) {
             return new Date(parts[2], parts[0] - 1, parts[1]);
           }
@@ -745,8 +757,7 @@ function App() {
         const dateB = parseDate(b.lastPlayed);
         
         return dateB.getTime() - dateA.getTime();
-      })
-      .map(player => player.name);
+      });
   }, [data, selectedGender]);
 
   const handleNameChange = (e) => {
@@ -757,7 +768,7 @@ function App() {
     if (value.length > 0) {
       // Fast string matching on pre-sorted data
       const filtered = autocompleteData
-        .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+        .filter(player => player.name.toLowerCase().includes(value.toLowerCase()))
         .slice(0, 10);
       
       setFilteredNames(filtered);
@@ -774,6 +785,7 @@ function App() {
       setSelectedAge('all');
       
       // Hide the rating history section
+      setSelectedPlayerId(null);
       setShowHistory(false);
       setPlayerHistory([]);
       
@@ -834,13 +846,11 @@ function App() {
     }
   };
 
-  const handleNameSelect = (name) => {
-    setPlayerName(name);
+  const handleNameSelect = (selectedPlayer) => {
+    setPlayerName(selectedPlayer.name);
+    setSelectedPlayerId(selectedPlayer.id);
     setShowSuggestions(false);
     setSelectedSuggestionIndex(-1);
-    
-    // Find the selected player in the full dataset
-    const selectedPlayer = data.find(p => p.name === name);
     
     if (selectedPlayer) {
       // Auto-fill filter values with player's information
@@ -868,7 +878,7 @@ function App() {
     }
     
     // Fetch rating history for the selected player
-    fetchPlayerHistory(name);
+    fetchPlayerHistory(selectedPlayer.id);
     
     // The useEffect will handle recalculating player info with the new filter values
   };
@@ -877,7 +887,7 @@ function App() {
   const compareAutocompleteData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    return data
+    return [...data]
       .sort((a, b) => {
         if (a.rating !== b.rating) {
           return b.rating - a.rating;
@@ -885,7 +895,7 @@ function App() {
         
         const parseDate = (dateStr) => {
           if (!dateStr) return new Date(0);
-          const parts = dateStr.split(/[\/\-]/);
+          const parts = dateStr.split(/[/-]/);
           if (parts.length === 3) {
             return new Date(parts[2], parts[0] - 1, parts[1]);
           }
@@ -896,8 +906,7 @@ function App() {
         const dateB = parseDate(b.lastPlayed);
         
         return dateB.getTime() - dateA.getTime();
-      })
-      .map(player => player.name);
+      });
   }, [data]);
 
   // Compare player autocomplete handlers
@@ -909,7 +918,7 @@ function App() {
     if (value.length > 0) {
       // Fast string matching on pre-sorted data
       const filtered = compareAutocompleteData
-        .filter(name => name.toLowerCase().includes(value.toLowerCase()))
+        .filter(player => player.name.toLowerCase().includes(value.toLowerCase()))
         .slice(0, 10);
       
       setCompareFilteredNames(filtered);
@@ -949,171 +958,47 @@ function App() {
     }
   };
 
-  const handleCompareNameSelect = (name) => {
-    setComparePlayerName(name);
+  const handleCompareNameSelect = (selectedPlayer) => {
+    setComparePlayerName(selectedPlayer.name);
     setShowCompareSuggestions(false);
     setSelectedCompareSuggestionIndex(-1);
     
     // Fetch comparison player history
-    fetchComparePlayerHistory(name);
+    fetchComparePlayerHistory(selectedPlayer.id);
   };
 
-  // Fetch player rating history with performance optimizations
-  const fetchPlayerHistory = async (selectedPlayerName) => {
-    if (!selectedPlayerName || !selectedPlayerName.trim()) return;
-    
-    setHistoryLoading(true);
+  // Rating history comes from a small per-shard file, cached after the first load.
+  // Errors stay in the history section instead of replacing the whole page.
+  const fetchPlayerHistory = async (playerId) => {
     setShowHistory(true);
-    
+    setHistoryLoading(true);
+    setHistoryError(null);
     try {
-      // Check cache first (10-minute expiration for better mobile performance)
-      const cacheKey = selectedPlayerName.toLowerCase();
-      const now = Date.now();
-      if (historyCache.has(cacheKey) && (now - lastHistoryFetch) < 10 * 60 * 1000) {
-        const cachedData = historyCache.get(cacheKey);
-        setPlayerHistory(cachedData);
-        setHistoryLoading(false);
-        return;
-      }
-      
-      const response = await fetch(HISTORY_SHEET_URL);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const json = await response.json();
-      if (!json.values || !Array.isArray(json.values)) {
-        throw new Error('Invalid rating history data format');
-      }
-      
-      // Parse rating history data - expecting format: [PlayerName, Period, Rating, LastPlayed, Gender, Province]
-      const rows = json.values.slice(1); // skip header
-      const playerData = rows
-        .filter(row => row && row.length >= 3 && row[0] && row[0].toLowerCase() === selectedPlayerName.toLowerCase())
-        .map(row => ({
-          period: row[1] || '',
-          rating: parseInt(row[2], 10) || 0,
-          lastPlayed: row[3] || ''
-        }))
-        .filter(entry => entry.rating > 0)
-        .sort((a, b) => {
-          // Convert period to date for proper chronological sorting
-          // Handle formats like "2024-01", "412", or other period formats
-          const parseDate = (period) => {
-            if (!period) return new Date(0);
-            
-            // If it looks like YYYY-MM format
-            if (/^\d{4}-\d{2}$/.test(period)) {
-              return new Date(period + '-01');
-            }
-            
-            // If it's a numeric period ID, treat as is for now
-            if (/^\d+$/.test(period)) {
-              return new Date(parseInt(period) * 86400000); // Convert to milliseconds for sorting
-            }
-            
-            // Try to parse as date directly
-            const date = new Date(period);
-            return isNaN(date.getTime()) ? new Date(0) : date;
-          };
-          
-          const dateA = parseDate(a.period);
-          const dateB = parseDate(b.period);
-          
-          return dateA.getTime() - dateB.getTime();
-        });
-      
-      // Update cache
-      setHistoryCache(prev => new Map(prev.set(cacheKey, playerData)));
-      setLastHistoryFetch(now);
-      
-      setPlayerHistory(playerData);
-      
-    } catch (error) {
-      console.error('Error fetching player history:', error);
-      setError(`Failed to load rating history: ${error.message}`);
+      setPlayerHistory(await loadPlayerHistory(playerId));
+    } catch (err) {
+      console.error('Error fetching player history:', err);
+      setPlayerHistory([]);
+      setHistoryError(`Failed to load rating history: ${err.message}`);
     } finally {
       setHistoryLoading(false);
     }
   };
 
-  // Fetch comparison player history
-  const fetchComparePlayerHistory = async (selectedPlayerName) => {
-    if (!selectedPlayerName || !selectedPlayerName.trim()) {
+  const fetchComparePlayerHistory = async (playerId) => {
+    if (!playerId) {
       setComparePlayerHistory([]);
       setShowComparison(false);
       return;
     }
-    
-    setCompareHistoryLoading(true);
     setShowComparison(true);
-    
+    setCompareHistoryLoading(true);
+    setCompareHistoryError(null);
     try {
-      // Check cache first (10-minute expiration for better mobile performance)
-      const cacheKey = `compare_${selectedPlayerName.toLowerCase()}`;
-      const now = Date.now();
-      if (historyCache.has(cacheKey) && (now - lastHistoryFetch) < 10 * 60 * 1000) {
-        const cachedData = historyCache.get(cacheKey);
-        setComparePlayerHistory(cachedData);
-        setCompareHistoryLoading(false);
-        return;
-      }
-      
-      const response = await fetch(HISTORY_SHEET_URL);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const json = await response.json();
-      if (!json.values || !Array.isArray(json.values)) {
-        throw new Error('Invalid rating history data format');
-      }
-      
-      // Parse rating history data - expecting format: [PlayerName, Period, Rating, LastPlayed, Gender, Province]
-      const rows = json.values.slice(1); // skip header
-      const playerData = rows
-        .filter(row => row && row.length >= 3 && row[0] && row[0].toLowerCase() === selectedPlayerName.toLowerCase())
-        .map(row => ({
-          period: row[1] || '',
-          rating: parseInt(row[2], 10) || 0,
-          lastPlayed: row[3] || ''
-        }))
-        .filter(entry => entry.rating > 0)
-        .sort((a, b) => {
-          // Convert period to date for proper chronological sorting
-          const parseDate = (period) => {
-            if (!period) return new Date(0);
-            
-            // If it looks like YYYY-MM format
-            if (/^\d{4}-\d{2}$/.test(period)) {
-              return new Date(period + '-01');
-            }
-            
-            // If it's a numeric period ID, treat as is for now
-            if (/^\d+$/.test(period)) {
-              return new Date(parseInt(period) * 86400000); // Convert to milliseconds for sorting
-            }
-            
-            // Try to parse as date directly
-            const date = new Date(period);
-            return isNaN(date.getTime()) ? new Date(0) : date;
-          };
-          
-          const dateA = parseDate(a.period);
-          const dateB = parseDate(b.period);
-          
-          return dateA.getTime() - dateB.getTime();
-        });
-      
-      // Update cache
-      setHistoryCache(prev => new Map(prev.set(cacheKey, playerData)));
-      setLastHistoryFetch(now);
-      
-      setComparePlayerHistory(playerData);
-      
-    } catch (error) {
-      console.error('Error fetching comparison player history:', error);
-      setError(`Failed to load comparison player history: ${error.message}`);
+      setComparePlayerHistory(await loadPlayerHistory(playerId));
+    } catch (err) {
+      console.error('Error fetching comparison player history:', err);
+      setComparePlayerHistory([]);
+      setCompareHistoryError(`Failed to load comparison player history: ${err.message}`);
     } finally {
       setCompareHistoryLoading(false);
     }
@@ -1309,6 +1194,11 @@ function App() {
             lineHeight: "1.4"
           }}>
             Discover the amazing world of Canadian table tennis ratings
+            {dataInfo?.generatedAt && (
+              <span style={{ display: "block", fontSize: "0.65em", color: "#666", marginTop: "6px", fontStyle: "normal" }}>
+                Rating period {dataInfo.period} · updated {new Date(dataInfo.generatedAt).toLocaleDateString()}
+              </span>
+            )}
           </p>
 
           {/* First Row: Player Name Input and Active Period */}
@@ -1386,6 +1276,7 @@ function App() {
                         setSelectedGender('all');
                         setSelectedAge('all');
                         // Hide the rating history section
+                        setSelectedPlayerId(null);
                         setShowHistory(false);
                         setPlayerHistory([]);
                         // Clear comparison data
@@ -1460,9 +1351,9 @@ function App() {
                       zIndex: 1000,
                       boxShadow: "0 5px 15px rgba(128, 128, 128, 0.3)"
                     }}>
-                      {filteredNames.map((name, index) => (
+                      {filteredNames.map((player, index) => (
                         <div
-                          key={index}
+                          key={player.id || index}
                           style={{
                             padding: isMobile(windowSize.width) ? "14px 16px" : "10px 15px", // Larger touch targets
                             cursor: "pointer",
@@ -1476,11 +1367,14 @@ function App() {
                             alignItems: "center",
                             transition: "background-color 0.2s ease"
                           }}
-                          onMouseDown={() => handleNameSelect(name)}
+                          onMouseDown={() => handleNameSelect(player)}
                           onMouseEnter={() => setSelectedSuggestionIndex(index)}
                           onMouseLeave={() => setSelectedSuggestionIndex(-1)}
                         >
-                          {name}
+                          <span>{player.name}</span>
+                          <span style={{ marginLeft: "auto", paddingLeft: "10px", color: "#888", fontSize: "0.85em", whiteSpace: "nowrap" }}>
+                            {player.province} · {player.rating}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -1716,27 +1610,27 @@ function App() {
               }}>
                 {topPlayers.map((player, index) => (
                   <div
-                    key={`${player.name}-${player.rating}-${index}`}
-                    data-player-name={player.name}
+                    key={player.id || `${player.name}-${index}`}
+                    data-player-id={player.id}
                     style={{
                       padding: "16px",
                       borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
-                      backgroundColor: player.name === playerName ? "#E3F2FD" : "white",
+                      backgroundColor: player.id === selectedPlayerId ? "#E3F2FD" : "white",
                       cursor: "pointer",
                       transition: "background-color 0.2s ease",
-                      border: player.name === playerName ? "2px solid #2196F3" : "none",
-                      borderRadius: player.name === playerName ? "8px" : "0",
-                      margin: player.name === playerName ? "2px" : "0"
+                      border: player.id === selectedPlayerId ? "2px solid #2196F3" : "none",
+                      borderRadius: player.id === selectedPlayerId ? "8px" : "0",
+                      margin: player.id === selectedPlayerId ? "2px" : "0"
                     }}
-                    onClick={() => handleNameSelect(player.name)}
+                    onClick={() => handleNameSelect(player)}
                     onTouchStart={(e) => {
-                      if (player.name !== playerName) {
+                      if (player.id !== selectedPlayerId) {
                         e.currentTarget.style.backgroundColor = "#EDE7F6";
                       }
                     }}
                     onTouchEnd={(e) => {
                       setTimeout(() => {
-                        if (player.name === playerName) {
+                        if (player.id === selectedPlayerId) {
                           e.currentTarget.style.backgroundColor = "#E3F2FD";
                         } else {
                           e.currentTarget.style.backgroundColor = "white";
@@ -1828,8 +1722,8 @@ function App() {
                 <div className="table-container" style={{ maxHeight: isMobile(windowSize.width) ? "400px" : "600px", overflowY: "auto" }}>
                   {topPlayers.map((player, index) => (
                     <div
-                      key={`${player.name}-${player.rating}-${index}`}
-                      data-player-name={player.name}
+                      key={player.id || `${player.name}-${index}`}
+                      data-player-id={player.id}
                       style={{
                         display: "grid",
                         gridTemplateColumns: isMobile(windowSize.width) 
@@ -1838,30 +1732,30 @@ function App() {
                         gap: isMobile(windowSize.width) ? "8px" : "10px",
                         padding: isMobile(windowSize.width) ? "12px 8px" : "12px 15px",
                         borderBottom: index < topPlayers.length - 1 ? "1px solid #e8e8e8" : "none",
-                        backgroundColor: player.name === playerName ? "#E3F2FD" : (index % 2 === 0 ? "#f9f9f9" : "white"),
+                        backgroundColor: player.id === selectedPlayerId ? "#E3F2FD" : (index % 2 === 0 ? "#f9f9f9" : "white"),
                         fontSize: isMobile(windowSize.width) ? "0.85em" : "0.95em",
                         textAlign: "center",
                         alignItems: "center",
                         cursor: "pointer",
                         transition: "background-color 0.2s ease",
-                        border: player.name === playerName ? "2px solid #2196F3" : "none",
-                        borderRadius: player.name === playerName ? "8px" : "0",
-                        margin: player.name === playerName ? "2px" : "0",
+                        border: player.id === selectedPlayerId ? "2px solid #2196F3" : "none",
+                        borderRadius: player.id === selectedPlayerId ? "8px" : "0",
+                        margin: player.id === selectedPlayerId ? "2px" : "0",
                         minHeight: isMobile(windowSize.width) ? "48px" : "auto" // Better touch target
                       }}
                       onMouseOver={(e) => {
-                        if (player.name !== playerName) {
+                        if (player.id !== selectedPlayerId) {
                           e.currentTarget.style.backgroundColor = "#EDE7F6";
                         }
                       }}
                       onMouseOut={(e) => {
-                        if (player.name === playerName) {
+                        if (player.id === selectedPlayerId) {
                           e.currentTarget.style.backgroundColor = "#E3F2FD";
                         } else {
                           e.currentTarget.style.backgroundColor = index % 2 === 0 ? "#f9f9f9" : "white";
                         }
                       }}
-                      onClick={() => handleNameSelect(player.name)}
+                      onClick={() => handleNameSelect(player)}
                     >
                       <div style={{
                         fontWeight: "bold",
@@ -1942,6 +1836,12 @@ function App() {
               }}>
                 {isMobile(windowSize.width) ? "Rating History" : "📈 Rating History"} - {playerName}
               </h2>
+              
+              {historyError && (
+                <div role="alert" style={{ margin: "0 0 12px", padding: "8px", backgroundColor: "#fdecea", color: "#b71c1c", borderRadius: "4px", textAlign: "center" }}>
+                  {historyError}
+                </div>
+              )}
               
               <RatingHistoryChart 
                 key={`${playerName}-${comparePlayerName}-${startCompareYear}-${startCompareMonth}`}
@@ -2037,9 +1937,9 @@ function App() {
                         zIndex: 1000,
                         boxShadow: "0 5px 15px rgba(128, 128, 128, 0.3)"
                       }}>
-                        {compareFilteredNames.map((name, index) => (
+                        {compareFilteredNames.map((player, index) => (
                           <div
-                            key={index}
+                            key={player.id || index}
                             style={{
                               padding: isMobile(windowSize.width) ? "14px 16px" : "10px 15px",
                               cursor: "pointer",
@@ -2053,11 +1953,14 @@ function App() {
                               alignItems: "center",
                               transition: "background-color 0.2s ease"
                             }}
-                            onMouseDown={() => handleCompareNameSelect(name)}
+                            onMouseDown={() => handleCompareNameSelect(player)}
                             onMouseEnter={() => setSelectedCompareSuggestionIndex(index)}
                             onMouseLeave={() => setSelectedCompareSuggestionIndex(-1)}
                           >
-                            {name}
+                            <span>{player.name}</span>
+                          <span style={{ marginLeft: "auto", paddingLeft: "10px", color: "#888", fontSize: "0.85em", whiteSpace: "nowrap" }}>
+                            {player.province} · {player.rating}
+                          </span>
                           </div>
                         ))}
                       </div>
@@ -2185,7 +2088,13 @@ function App() {
                   )}
                 </div>
                 
-                {comparePlayerName && comparePlayerHistory.length === 0 && !compareHistoryLoading && (
+                {compareHistoryError && (
+                  <div role="alert" style={{ marginTop: "12px", padding: "8px", backgroundColor: "#fdecea", color: "#b71c1c", borderRadius: "4px", fontSize: "0.9em", textAlign: "center" }}>
+                    {compareHistoryError}
+                  </div>
+                )}
+                
+                {comparePlayerName && comparePlayerHistory.length === 0 && !compareHistoryLoading && !compareHistoryError && (
                   <div style={{
                     marginTop: "12px",
                     padding: "8px",
