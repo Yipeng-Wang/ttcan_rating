@@ -249,7 +249,7 @@ describe('app', () => {
     expect(Object.fromEntries(new URLSearchParams(window.location.search))).toEqual({ page: 'calculator', player: '7864' });
   });
 
-  test('both tables start with 15 rows, fastest climbers first', async () => {
+  test('both tables start with 10 rows, fastest climbers first', async () => {
     const many = Array.from({ length: 20 }, (_, i) => ({
       id: String(1000 + i), name: `PLAYER ${i}`, province: 'ON', gender: 'M', rating: 2000 - i,
       lastPlayed: '2026-09-01', birthYear: 2012, growth: 100 + i, growthSince: '2025-10-01',
@@ -259,8 +259,8 @@ describe('app', () => {
     render(<App />);
     const climbers = await screen.findByRole('table', { name: /Fastest climbers/ });
     const top = screen.getByRole('table', { name: /Top players/ });
-    expect(within(climbers).getAllByRole('row')).toHaveLength(16); // header + 15
-    expect(within(top).getAllByRole('row')).toHaveLength(16);
+    expect(within(climbers).getAllByRole('row')).toHaveLength(11); // header + 10
+    expect(within(top).getAllByRole('row')).toHaveLength(11);
     expect(climbers.compareDocumentPosition(top) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Show more climbers' }));
     expect(within(climbers).getAllByRole('row')).toHaveLength(21);
