@@ -2,7 +2,11 @@ name: Update ratings data
 
 on:
   schedule:
-    - cron: "0 13 * * *" # daily, 9am Eastern (EDT); exits after one page fetch if there is no new period
+    # Twice a day, 9:17 and 17:17 Eastern (EDT). Off the top of the hour, when GitHub is
+    # busiest and may delay or drop scheduled runs; two slots so one missed run (or a
+    # sleeping computer) doesn't delay a new period by a day. A run with no new period
+    # exits after one page fetch.
+    - cron: "17 13,21 * * *"
   workflow_dispatch:
     inputs:
       full_refresh:
