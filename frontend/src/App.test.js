@@ -209,7 +209,7 @@ describe('app', () => {
     await screen.findByRole('heading', { name: /Rating calculator/ });
 
     fireEvent.change(screen.getByPlaceholderText('e.g. 1500'), { target: { value: '1500' } });
-    fireEvent.click(screen.getByRole('radio', { name: '★★' }));
+    expect(screen.getByRole('radio', { name: '★★' })).toHaveAttribute('aria-checked', 'true'); // the default
     fireEvent.change(screen.getByLabelText('Match 1 opponent rating'), { target: { value: '1380' } });
     fireEvent.change(screen.getByLabelText('Match 2 opponent rating'), { target: { value: '1650' } });
     fireEvent.click(screen.getByRole('button', { name: '+ Add a match' }));
