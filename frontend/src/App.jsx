@@ -123,6 +123,9 @@ function App() {
               history={history}
               compare={comparePlayer ? { player: comparePlayer, history: compareHistory } : null}
               players={comparePool}
+              allPlayers={dataset.players}
+              activeFilter={active}
+              onSelect={selectPlayer}
               range={view.range}
               isMobile={isMobile}
               onClose={() => update({ player: '', compare: '' })}

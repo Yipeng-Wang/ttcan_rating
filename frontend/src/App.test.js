@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 import {
-  betterThanPercent, formatMonth, histogram, latestChange, nextMilestone, personalBest, loadPlayerHistory, matchesFilters, mergeHistories,
+  betterThanPercent, formatMonth, histogram, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters, mergeHistories,
   niceTicks, playerStanding, searchPlayers, toAppPlayer, yearTicks,
 } from './data';
 
@@ -54,6 +54,24 @@ describe('data helpers', () => {
     expect(matchesFilters(players[1], { age: 'u15' }, NOW)).toBe(false);
   });
 
+  test('players near you come from the age group, or the province for adults', () => {
+    const kids = [
+      ...players,
+      toAppPlayer({ id: '401', name: 'A', province: 'ON', gender: 'M', rating: 1600, lastPlayed: '2026-05-01', birthYear: 2012 }, 2026),
+      toAppPlayer({ id: '402', name: 'B', province: 'ON', gender: 'M', rating: 1400, lastPlayed: '2026-05-01', birthYear: 2013 }, 2026),
+      toAppPlayer({ id: '403', name: 'C', province: 'ON', gender: 'F', rating: 1450, lastPlayed: '2026-05-01', birthYear: 2013 }, 2026),
+    ];
+    const group = rivalGroup(kids, kids[3], '', NOW);
+    expect(group.label).toBe('U15 boys');
+    expect(nearbyPlayers(group.players, kids[3]).map(r => [r.player.id, r.rank, r.isSelf])).toEqual([['401', 1, false], ['300', 2, true], ['402', 3, false]]);
+    // the window shifts so a top-ranked player still sees a full list
+    const many = Array.from({ length: 8 }, (_, i) => ({ id: String(i), name: `P${i}`, rating: 1000 - i * 10 }));
+    expect(nearbyPlayers(many, many[0]).map(r => r.player.id)).toEqual(['0', '1', '2', '3', '4']);
+    expect(nearbyPlayers(many, many[7]).map(r => r.player.id)).toEqual(['3', '4', '5', '6', '7']);
+    expect(nearbyPlayers(many, many[4]).map(r => r.player.id)).toEqual(['2', '3', '4', '5', '6']);
+    expect(rivalGroup(kids, kids[0], '', NOW).label).toBe('Ontario');
+  });
+
   test('ranks with ties and per-scope totals', () => {
     const s = playerStanding(players, players[3], '', NOW);
     expect(s.scopes.find(x => x.id === 'canada')).toMatchObject({ rank: 2, total: 4 });
@@ -72,7 +90,10 @@ describe('data helpers', () => {
       { t: 2, a: null, b: 20, aNow: 10, bNow: 20 },
       { t: 3, a: 30, b: null, aNow: 30, bNow: 20 },
     ]);
-    expect(nextMilestone(1663)).toEqual({ goal: 1700, toGo: 37, progress: 0.63 });
+    const h = [{ date: '2024-06-01', t: Date.UTC(2024, 5, 1), rating: 1400 }, { date: '2025-09-01', t: Date.UTC(2025, 8, 1), rating: 1450 }, { date: '2026-09-01', t: Date.UTC(2026, 8, 1), rating: 1500 }];
+    expect(yearChange(h, 1520, NOW)).toEqual({ delta: 70, since: '2025-09-01', sinceStart: false });
+    expect(yearChange(h.slice(2), 1520, NOW)).toBeNull();
+    expect(yearChange([{ ...h[2] }, { date: '2026-10-01', t: Date.UTC(2026, 9, 1), rating: 1510 }], 1510, NOW)).toEqual({ delta: 10, since: '2026-09-01', sinceStart: true });
     expect(personalBest([{ rating: 5 }, { rating: 9 }, { rating: 7 }])).toEqual({ rating: 9 });
     expect(betterThanPercent(2, 4)).toBe(50);
     expect(latestChange([{ date: '2026-08-04', rating: 4063 }, { date: '2026-09-07', rating: 4071 }])).toEqual({ delta: 8, since: '2026-08-04' });
@@ -111,12 +132,15 @@ describe('app', () => {
     fireEvent.mouseDown(within(await screen.findByRole('listbox')).getByRole('option'));
 
     const card = await screen.findByRole('region', { name: 'WANG Eugene Zhen' });
-    expect(within(card).getByText('4,071')).toBeInTheDocument();
+    expect(within(card).getAllByText('4,071')).toHaveLength(2); // rating tile and players-near-you row
+    expect(within(card).getByText(/Ranked just above and below in Ontario/)).toBeInTheDocument();
     expect(await within(card).findByText(/Up 8 since Aug 2026/)).toBeInTheDocument();
     expect(within(card).getByText('75%')).toBeInTheDocument();
-    expect(within(card).getByText('29 points to go')).toBeInTheDocument();
+    expect(within(card).getByText('First rated Aug 2026 · 2 rating periods on record')).toBeInTheDocument();
     expect(within(card).getByText('That’s right now!')).toBeInTheDocument();
     expect(window.location.search).toBe('?player=7864');
+    fireEvent.click(within(card).getByRole('button', { name: 'Compare' }));
+    expect(window.location.search).toBe('?player=7864&compare=100');
     // selecting a player no longer changes the filters
     expect(screen.getByLabelText('Province')).toHaveValue('');
   });

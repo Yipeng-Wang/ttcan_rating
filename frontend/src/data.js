@@ -44,6 +44,7 @@ export function toAppPlayer(raw, currentYear = new Date().getFullYear()) {
     rating: Number(raw.rating),
     lastPlayed: raw.lastPlayed || '',
     age: raw.birthYear ? currentYear - raw.birthYear : null,
+    provisional: Boolean(raw.temporary),
   };
 }
 
@@ -158,10 +159,53 @@ export function betterThanPercent(rank, total) {
   return Math.floor(((total - rank) / total) * 100);
 }
 
-/** The next round-hundred goal above a rating, and how far along the current hundred the player is. */
-export function nextMilestone(rating, step = 100) {
-  const goal = (Math.floor(rating / step) + 1) * step;
-  return { goal, toGo: goal - rating, progress: (rating % step) / step };
+/**
+ * Rating change over the past year: current rating versus the last rating on record
+ * a year ago. Falls back to the first rating when the player started less than a year ago.
+ */
+export function yearChange(history, currentRating, now = new Date()) {
+  if (!history.length) return null;
+  const yearAgo = Date.UTC(now.getFullYear() - 1, now.getMonth(), now.getDate());
+  let base = null;
+  for (const e of history) if (e.t <= yearAgo) base = e;
+  if (base) return { delta: currentRating - base.rating, since: base.date, sinceStart: false };
+  if (history.length < 2) return null;
+  return { delta: currentRating - history[0].rating, since: history[0].date, sinceStart: true };
+}
+
+/**
+ * A window of `size` players around `player` in a pool sorted by rating, with their ranks.
+ * Centred on the player, shifted at the top or bottom so the window stays full.
+ */
+export function nearbyPlayers(pool, player, size = 5) {
+  const sorted = sortByRating(pool);
+  const index = sorted.findIndex(p => p.id === player.id);
+  if (index < 0) return [];
+  const ranks = [];
+  sorted.forEach((p, i) => ranks.push(i > 0 && p.rating === sorted[i - 1].rating ? ranks[i - 1] : i + 1));
+  const from = Math.max(0, Math.min(index - Math.floor(size / 2), sorted.length - size));
+  const to = Math.min(sorted.length, from + size);
+  return sorted.slice(from, to).map((p, i) => ({ player: p, rank: ranks[from + i], isSelf: p.id === player.id }));
+}
+
+/**
+ * The group a player is most usefully compared with: their age group (same gender) if young,
+ * otherwise their province. Uses the same activity window as the rankings so ranks agree.
+ */
+export function rivalGroup(players, player, active, now = new Date()) {
+  const pool = players.filter(p => p.id === player.id || matchesFilters(p, { active }, now));
+  const group = ageGroupOf(player.age);
+  if (group) {
+    const genderWord = player.gender === 'F' ? ' girls' : player.gender === 'M' ? ' boys' : '';
+    return {
+      label: `${group.label}${genderWord}`,
+      players: pool.filter(p => p.age != null && p.age <= group.max && (!player.gender || p.gender === player.gender)),
+    };
+  }
+  return {
+    label: PROVINCES[player.province] || player.province || 'Canada',
+    players: player.province ? pool.filter(p => p.province === player.province) : pool,
+  };
 }
 
 /** Highest rating in a history. */

@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   GENDERS, PROVINCES, RANGE_OPTIONS, betterThanPercent, formatMonth, formatNumber,
-  latestChange, nextMilestone, personalBest,
+  latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange,
 } from '../data';
 import HistoryChart from './HistoryChart';
 import PlayerSearch from './PlayerSearch';
@@ -22,27 +22,64 @@ function Change({ change }) {
   );
 }
 
-function Milestone({ rating }) {
-  const { goal, toGo, progress } = nextMilestone(rating);
+function YearTile({ change }) {
+  if (!change) return null;
+  const { delta } = change;
+  const up = delta > 0;
   return (
-    <div className="tile tile--goal">
-      <div className="tile__label"><span aria-hidden="true">🎯</span> Next goal</div>
-      <div className="tile__value">{formatNumber(goal)}</div>
-      <div className="meter" role="meter" aria-valuemin={goal - 100} aria-valuemax={goal} aria-valuenow={rating} aria-label={`${toGo} points to ${goal}`}>
-        <div className="meter__fill" style={{ width: `${Math.max(4, progress * 100)}%` }} />
+    <div className="tile tile--year">
+      <div className="tile__label"><span aria-hidden="true">📅</span> {change.sinceStart ? 'Since first rated' : 'Past 12 months'}</div>
+      <div className={`tile__value ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : ''}`}>
+        {delta === 0 ? '±0' : `${up ? '+' : '−'}${formatNumber(Math.abs(delta))}`}
       </div>
-      <div className="tile__sub">{toGo} {toGo === 1 ? 'point' : 'points'} to go</div>
+      <div className="tile__sub">since {formatMonth(change.since)}</div>
+    </div>
+  );
+}
+
+function NearbyPlayers({ group, player, onSelect, onCompare, compareId }) {
+  const rows = nearbyPlayers(group.players, player);
+  if (rows.length < 2) return null;
+  return (
+    <div className="nearby">
+      <h3><span aria-hidden="true">👋</span> Players near you</h3>
+      <p className="muted small">Ranked just above and below in {group.label}</p>
+      <ol className="nearby__list">
+        {rows.map(({ player: p, rank, isSelf }) => {
+          const diff = p.rating - player.rating;
+          return (
+            <li key={p.id} className={isSelf ? 'is-self' : undefined}>
+              <span className="nearby__rank">#{formatNumber(rank)}</span>
+              {isSelf ? <span className="nearby__name">{p.name}</span> : (
+                <button type="button" className="player-link nearby__name" onClick={() => onSelect(p)}>{p.name}</button>
+              )}
+              <span className="nearby__rating">{formatNumber(p.rating)}</span>
+              <span className="nearby__diff">
+                {isSelf ? '' : diff === 0 ? 'tied' : `${diff > 0 ? '+' : '−'}${Math.abs(diff)}`}
+              </span>
+              <span className="nearby__action">
+                {!isSelf && (compareId === p.id
+                  ? <span className="muted small">Comparing</span>
+                  : <button type="button" className="chip-button" onClick={() => onCompare(p)}>Compare</button>)}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }
 
 export default function PlayerCard({
-  player, standing, activeLabel, history, compare, players, range, isMobile,
-  onClose, onCompare, onClearCompare, onRange,
+  player, standing, activeLabel, history, compare, players, allPlayers, activeFilter, range, isMobile,
+  onClose, onSelect, onCompare, onClearCompare, onRange,
 }) {
   const ready = history.status === 'ready';
   const change = ready ? latestChange(history.data) : null;
   const best = ready ? personalBest(history.data) : null;
+  const pastYear = ready ? yearChange(history.data, player.rating) : null;
+  const group = rivalGroup(allPlayers, player, activeFilter);
+  const first = ready && history.data.length ? history.data[0] : null;
   const canada = standing.scopes[0];
   const better = standing.inPool ? betterThanPercent(canada.rank, canada.total) : null;
   const meta = [
@@ -70,12 +107,15 @@ export default function PlayerCard({
 
       <div className="tiles">
         <div className="tile tile--hero">
-          <div className="tile__label"><span aria-hidden="true">🏓</span> Rating</div>
+          <div className="tile__label">
+            <span aria-hidden="true">🏓</span> Rating
+            {player.provisional && <span className="badge" title="TTCAN marks this rating as temporary until more matches are played">Provisional</span>}
+          </div>
           <div className="tile__value">{formatNumber(player.rating)}</div>
           <Change change={change} />
         </div>
 
-        <Milestone rating={player.rating} />
+        <YearTile change={pastYear} />
 
         {best && (
           <div className="tile tile--best">
@@ -110,6 +150,8 @@ export default function PlayerCard({
       )}
       {activeLabel && standing.inPool && <p className="muted small">Counting players who played in the last {activeLabel}.</p>}
 
+      <NearbyPlayers group={group} player={player} onSelect={onSelect} onCompare={onCompare} compareId={compare?.player.id} />
+
       <div className="history">
         <div className="history__head">
           <h3><span aria-hidden="true">📈</span> Rating over time</h3>
@@ -119,6 +161,11 @@ export default function PlayerCard({
         {history.status === 'loading' && <p className="muted chart-empty">Loading history…</p>}
         {history.status === 'error' && <p className="notice notice--error" role="alert">Couldn’t load rating history. {history.error}</p>}
         {ready && !history.data.length && <p className="muted chart-empty">No rating history yet.</p>}
+        {first && (
+          <p className="muted small history__facts">
+            First rated {formatMonth(first.date)} · {formatNumber(history.data.length)} rating {history.data.length === 1 ? 'period' : 'periods'} on record
+          </p>
+        )}
         {series && <HistoryChart series={series} range={range} compact={isMobile} />}
 
         <div className="compare">
