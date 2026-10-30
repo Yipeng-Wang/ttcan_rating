@@ -33,7 +33,7 @@ Then deploy the site (see below) and commit the changed files in `frontend/publi
 
 ### Automatic updates
 
-`.github/workflows/update-data.yml` runs daily at 13:00 UTC. It checks the newest rating period on the TTCAN site and stops if that period is already published. When a new period appears, it scrapes players and history, commits the data to `main` and redeploys GitHub Pages. To start it by hand, go to the Actions tab, choose **Update ratings data**, then **Run workflow**. Tick "full refresh" to scrape even when the period hasn't changed.
+`.github/workflows/update-data.yml` runs daily at 13:00 UTC. It checks the newest rating period on the TTCAN site and stops if that period is already published. When a new period appears, it scrapes players and history, commits the data to `main` and redeploys GitHub Pages. It runs on a self-hosted runner on a home computer, because TTCAN blocks connections from GitHub's servers. The runner is installed in `~/actions-runner-ttcan` as a login service. If the computer is off at 13:00 UTC, the job waits in the queue for up to 24 hours. To check on the runner, run `./svc.sh status` in that folder. To start it by hand, go to the Actions tab, choose **Update ratings data**, then **Run workflow**. Tick "full refresh" to scrape even when the period hasn't changed.
 
 Options:
 
