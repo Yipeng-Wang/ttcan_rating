@@ -68,9 +68,7 @@ function App() {
 
   const byId = useMemo(() => new Map(dataset.players.map(p => [p.id, p])), [dataset.players]);
   const player = byId.get(view.player) || null;
-  const comparePlayer = byId.get(view.compare) || null;
   const history = useHistory(player?.id);
-  const compareHistory = useHistory(player ? comparePlayer?.id : null);
 
   const provinces = useMemo(
     () => [...new Set(dataset.players.map(p => p.province).filter(Boolean))]
@@ -86,10 +84,9 @@ function App() {
   const standing = useMemo(() => (player ? playerStanding(dataset.players, player, active) : null), [dataset.players, player, active]);
   const activeLabel = active ? ACTIVITY_OPTIONS.find(o => o.id === active)?.label : null;
   const description = describe(filters, filtered.length);
-  const comparePool = useMemo(() => dataset.players.filter(p => p.id !== view.player), [dataset.players, view.player]);
 
   const selectPlayer = p => {
-    update({ player: p.id, compare: p.id === view.compare ? '' : view.compare });
+    update({ player: p.id });
     window.scrollTo?.({ top: 0, behavior: 'smooth' });
   };
 
@@ -121,18 +118,12 @@ function App() {
               standing={standing}
               activeLabel={activeLabel}
               history={history}
-              compare={comparePlayer ? { player: comparePlayer, history: compareHistory } : null}
-              players={comparePool}
               allPlayers={dataset.players}
               playersById={byId}
               activeFilter={active}
               onSelect={selectPlayer}
-              range={view.range}
               isMobile={isMobile}
-              onClose={() => update({ player: '', compare: '' })}
-              onCompare={p => update({ compare: p.id })}
-              onClearCompare={() => update({ compare: '' })}
-              onRange={range => update({ range })}
+              onClose={() => update({ player: '' })}
             />
           )}
 

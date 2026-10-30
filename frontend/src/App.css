@@ -199,7 +199,7 @@ select {
 .nearby .muted { margin: 2px 0 10px; }
 .nearby__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .nearby__list li {
-  display: grid; grid-template-columns: 4.5em 1fr 4.5em 3.5em 6.5em; align-items: center; gap: 8px;
+  display: grid; grid-template-columns: 4.5em 1fr 4.5em 3.5em; align-items: center; gap: 8px;
   padding: 8px 12px; border-radius: 12px; background: var(--surface-2);
 }
 .nearby__list li.is-self { background: var(--tint-yellow); font-weight: 800; }
@@ -207,13 +207,7 @@ select {
 .nearby__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nearby__rating { text-align: right; font-family: var(--font-display); font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
 .nearby__diff { text-align: right; color: var(--text-muted); font-size: 0.875rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-.nearby__action { text-align: right; }
-.chip-button {
-  border: 2px solid var(--accent-wash); background: var(--surface); color: var(--accent); font-weight: 800;
-  font-size: 0.85rem; border-radius: 999px; padding: 3px 12px; cursor: pointer;
-}
-.chip-button:hover { border-color: var(--accent); }
-.history__facts { margin: -2px 0 8px; }
+.player-card__facts { margin-top: 2px; }
 
 .ranks__title { margin: 22px 0 10px; }
 .ranks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
@@ -226,11 +220,6 @@ select {
 .rank-chip__scope { grid-area: scope; font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); }
 .player-card > .small { margin-top: 8px; }
 
-.history { margin-top: 26px; }
-.history__head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
-.history__head .filter__label { display: none; }
-.compare { margin-top: 18px; max-width: 440px; }
-.compare__current { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-weight: 600; }
 
 /* players who grew like you */
 .growth { margin-top: 26px; }
@@ -321,5 +310,4 @@ select {
   .board .rank { width: 2.6em; }
   .search input { font-size: 1.05rem; padding: 14px 16px 14px 48px; }
   .nearby__list li { grid-template-columns: 3.2em 1fr auto auto; padding: 8px 10px; }
-  .nearby__diff { display: none; }
 }

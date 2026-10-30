@@ -3,6 +3,7 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import { formatNumber, formatYears, growthPoints, loadPlayerHistory, loadSimilar, niceTicks, ratingAt } from '../data';
 
 const LATER = [1, 2, 3];
+const KIND_LABELS = { path: 'Similar climb', level: 'Same rating, same age', near: 'Closest match' };
 
 function useMatches(player) {
   const [state, setState] = useState({ status: 'loading', matches: [] });
@@ -18,6 +19,10 @@ function useMatches(player) {
     return () => { cancelled = true; };
   }, [player.id]);
   return state;
+}
+
+function whoWord(player) {
+  return player.gender === 'F' ? 'Girls & women' : player.gender === 'M' ? 'Boys & men' : 'Players';
 }
 
 function axisLabel(by, x) {
@@ -41,10 +46,9 @@ function GrowthTooltip({ active, payload, label, names, by }) {
   );
 }
 
-function GrowthChart({ mine, theirs, at, by, names, compact }) {
-  const now = mine.length ? mine[mine.length - 1].x : at;
-  const from = at - 2.5;
-  const to = at + 3.25;
+function GrowthChart({ mine, theirs, now, by, names, compact }) {
+  const from = now - 2.5;
+  const to = now + 3.25;
   const data = useMemo(() => {
     const xs = [...new Set([...mine, ...theirs].map(p => Math.round(p.x * 100) / 100))]
       .filter(x => x >= from && x <= to).sort((a, b) => a - b);
@@ -88,7 +92,7 @@ export default function GrowthMatches({ player, history, playersById, onSelect, 
     .map(m => {
       const other = playersById.get(m.id);
       const theirs = growthPoints(m.history, m.by, other?.birthYear);
-      const then = ratingAt(theirs, m.at);
+      const then = m.rating ?? ratingAt(theirs, m.at);
       if (!other || then == null) return null;
       const later = LATER.map(years => {
         const value = ratingAt(theirs, m.at + years);
@@ -103,12 +107,16 @@ export default function GrowthMatches({ player, history, playersById, onSelect, 
   if (status !== 'ready' || !rows.length) return null;
   const open = rows.find(r => r.id === openId) || rows[0];
   const mine = growthPoints(history, open.by, player.birthYear);
+  const now = mine.length ? mine[mine.length - 1].x : open.at;
+  // slide their path so the matching point lines up with "now"
+  const shift = now - open.at;
+  const theirsAligned = open.theirs.map(p => ({ ...p, x: p.x + shift }));
 
   return (
     <div className="growth">
       <h3><span aria-hidden="true">🌱</span> Players who grew like you</h3>
       <p className="muted small">
-        These players were at a similar rating at the same {open.by === 'age' ? 'age' : 'stage'}. Here’s how they kept going.
+        {whoWord(player)} who were closest to where you are now, at the same {open.by === 'age' ? 'age' : 'stage'}. Here’s how they kept going.
         Everyone grows differently, so think of it as inspiration, not a prediction.
       </p>
 
@@ -123,9 +131,10 @@ export default function GrowthMatches({ player, history, playersById, onSelect, 
             onClick={() => setOpenId(r.id)}
           >
             <span className="growth__name">{r.other.name}</span>
-            <span className="growth__kind">{r.match === 'path' ? 'Similar climb' : 'Same rating, same age'}</span>
+            <span className="growth__kind">{KIND_LABELS[r.match] || 'Closest match'}</span>
             <span className="growth__then">At {axisLabel(r.by, r.at)}: <strong>{formatNumber(r.then)}</strong></span>
             <span className="growth__later">
+              {r.later.every(l => l.value == null) && <span>No later ratings yet</span>}
               {r.later.filter(l => l.value != null).map(l => (
                 <span key={l.years} className="growth__step">
                   +{l.years}y <strong>{formatNumber(l.value)}</strong>
@@ -138,7 +147,7 @@ export default function GrowthMatches({ player, history, playersById, onSelect, 
       </div>
 
       <div className="growth__chart" role="tabpanel">
-        <GrowthChart mine={mine} theirs={open.theirs} at={open.at} by={open.by} names={[player.name, open.other.name]} compact={compact} />
+        <GrowthChart mine={mine} theirs={theirsAligned} now={now} by={open.by} names={[player.name, open.other.name]} compact={compact} />
         <ul className="legend" aria-label="Legend">
           <li><span className="line-key" style={{ background: 'var(--series-1)' }} />{player.name}</li>
           <li><span className="line-key" style={{ background: 'var(--series-2)' }} />{open.other.name}</li>

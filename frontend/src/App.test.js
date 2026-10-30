@@ -1,8 +1,8 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 import {
-  betterThanPercent, formatMonth, formatYears, growthPoints, histogram, ratingAt, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters, mergeHistories,
-  niceTicks, playerStanding, searchPlayers, toAppPlayer, yearTicks,
+  betterThanPercent, formatMonth, formatYears, growthPoints, histogram, ratingAt, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters,
+  niceTicks, playerStanding, searchPlayers, toAppPlayer,
 } from './data';
 
 const playersDoc = {
@@ -80,16 +80,8 @@ describe('data helpers', () => {
     expect(playerStanding(players, players[2], '12', NOW).inPool).toBe(false);
   });
 
-  test('chart helpers produce round ticks, year ticks and merged series', () => {
+  test('chart helpers produce round ticks and change summaries', () => {
     expect(niceTicks(3173, 3546)).toEqual({ domain: [3100, 3600], ticks: [3100, 3200, 3300, 3400, 3500, 3600] });
-    expect(yearTicks(Date.UTC(2011, 0, 1), Date.UTC(2026, 9, 1), 7).map(t => new Date(t).getUTCFullYear())).toEqual([2015, 2020, 2025]);
-    const a = [{ t: 1, rating: 10 }, { t: 3, rating: 30 }];
-    const b = [{ t: 2, rating: 20 }];
-    expect(mergeHistories(a, b)).toEqual([
-      { t: 1, a: 10, b: null, aNow: 10, bNow: null },
-      { t: 2, a: null, b: 20, aNow: 10, bNow: 20 },
-      { t: 3, a: 30, b: null, aNow: 30, bNow: 20 },
-    ]);
     const h = [{ date: '2024-06-01', t: Date.UTC(2024, 5, 1), rating: 1400 }, { date: '2025-09-01', t: Date.UTC(2025, 8, 1), rating: 1450 }, { date: '2026-09-01', t: Date.UTC(2026, 8, 1), rating: 1500 }];
     expect(yearChange(h, 1520, NOW)).toEqual({ delta: 70, since: '2025-09-01', sinceStart: false });
     expect(yearChange(h.slice(2), 1520, NOW)).toBeNull();
@@ -150,8 +142,8 @@ describe('app', () => {
     expect(within(card).getByText('First rated Aug 2026 · 2 rating periods on record')).toBeInTheDocument();
     expect(within(card).getByText('That’s right now!')).toBeInTheDocument();
     expect(window.location.search).toBe('?player=7864');
-    fireEvent.click(within(card).getByRole('button', { name: 'Compare' }));
-    expect(window.location.search).toBe('?player=7864&compare=100');
+    fireEvent.click(within(card).getByRole('button', { name: 'LI Wei' }));
+    expect(window.location.search).toBe('?player=100');
     // selecting a player no longer changes the filters
     expect(screen.getByLabelText('Province')).toHaveValue('');
   });
@@ -188,7 +180,7 @@ describe('app', () => {
         500: [[1, '2024-01-01', 800], [2, '2025-01-01', 1000], [3, '2026-01-01', 1200]],
         564: [[1, '2009-01-01', 790], [2, '2010-01-01', 1010], [3, '2011-01-01', 1190], [4, '2012-01-01', 1400], [5, '2013-01-01', 1550], [6, '2014-01-01', 1600]],
       } },
-      '/data/similar/52.json': { body: { 500: [{ id: '564', by: 'age', at: 15, match: 'path' }] } },
+      '/data/similar/52.json': { body: { 500: [{ id: '564', by: 'age', at: 15, rating: 1190, match: 'path' }] } },
     });
     render(<App />);
     const tab = await screen.findByRole('tab', { name: /OLDER Star/ });

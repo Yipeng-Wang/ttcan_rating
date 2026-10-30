@@ -1,12 +1,9 @@
 import React from 'react';
 import {
-  GENDERS, PROVINCES, RANGE_OPTIONS, betterThanPercent, formatMonth, formatNumber,
+  GENDERS, PROVINCES, betterThanPercent, formatMonth, formatNumber,
   latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange,
 } from '../data';
-import HistoryChart from './HistoryChart';
 import GrowthMatches from './GrowthMatches';
-import PlayerSearch from './PlayerSearch';
-import { Segmented } from './Filters';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
 const SCOPE_ICONS = { canada: '🍁', province: '📍', gender: '🏓', age: '⭐' };
@@ -38,7 +35,7 @@ function YearTile({ change }) {
   );
 }
 
-function NearbyPlayers({ group, player, onSelect, onCompare, compareId }) {
+function NearbyPlayers({ group, player, onSelect }) {
   const rows = nearbyPlayers(group.players, player);
   if (rows.length < 2) return null;
   return (
@@ -56,12 +53,7 @@ function NearbyPlayers({ group, player, onSelect, onCompare, compareId }) {
               )}
               <span className="nearby__rating">{formatNumber(p.rating)}</span>
               <span className="nearby__diff">
-                {isSelf ? '' : diff === 0 ? 'tied' : `${diff > 0 ? '+' : '−'}${Math.abs(diff)}`}
-              </span>
-              <span className="nearby__action">
-                {!isSelf && (compareId === p.id
-                  ? <span className="muted small">Comparing</span>
-                  : <button type="button" className="chip-button" onClick={() => onCompare(p)}>Compare</button>)}
+                {isSelf ? 'you' : diff === 0 ? 'tied' : `${diff > 0 ? '+' : '−'}${Math.abs(diff)}`}
               </span>
             </li>
           );
@@ -72,15 +64,13 @@ function NearbyPlayers({ group, player, onSelect, onCompare, compareId }) {
 }
 
 export default function PlayerCard({
-  player, standing, activeLabel, history, compare, players, allPlayers, playersById, activeFilter, range, isMobile,
-  onClose, onSelect, onCompare, onClearCompare, onRange,
+  player, standing, activeLabel, history, allPlayers, playersById, activeFilter, isMobile, onClose, onSelect,
 }) {
   const ready = history.status === 'ready';
   const change = ready ? latestChange(history.data) : null;
   const best = ready ? personalBest(history.data) : null;
   const pastYear = ready ? yearChange(history.data, player.rating) : null;
   const group = rivalGroup(allPlayers, player, activeFilter);
-  const first = ready && history.data.length ? history.data[0] : null;
   const canada = standing.scopes[0];
   const better = standing.inPool ? betterThanPercent(canada.rank, canada.total) : null;
   const meta = [
@@ -89,12 +79,11 @@ export default function PlayerCard({
     player.age != null ? `Age ${player.age}` : null,
     `Last played ${formatMonth(player.lastPlayed)}`,
   ].filter(Boolean);
-
-  const series = ready && history.data.length
-    ? [{ name: player.name, history: history.data },
-       ...(compare && compare.history.status === 'ready' && compare.history.data.length
-         ? [{ name: compare.player.name, history: compare.history.data }] : [])]
+  const first = ready && history.data.length ? history.data[0] : null;
+  const facts = first
+    ? `First rated ${formatMonth(first.date)} · ${formatNumber(history.data.length)} rating ${history.data.length === 1 ? 'period' : 'periods'} on record`
     : null;
+
 
   return (
     <section className="card player-card" aria-labelledby="player-name">
@@ -102,6 +91,7 @@ export default function PlayerCard({
         <div>
           <h2 id="player-name">{player.name}</h2>
           <p className="muted">{meta.join(' · ')}</p>
+          {facts && <p className="muted small player-card__facts">{facts}</p>}
         </div>
         <button type="button" className="icon-button" onClick={onClose} aria-label="Close player">×</button>
       </header>
@@ -151,42 +141,13 @@ export default function PlayerCard({
       )}
       {activeLabel && standing.inPool && <p className="muted small">Counting players who played in the last {activeLabel}.</p>}
 
-      <NearbyPlayers group={group} player={player} onSelect={onSelect} onCompare={onCompare} compareId={compare?.player.id} />
+      <NearbyPlayers group={group} player={player} onSelect={onSelect} />
 
       {ready && history.data.length > 0 && (
         <GrowthMatches player={player} history={history.data} playersById={playersById} onSelect={onSelect} compact={isMobile} />
       )}
 
-      <div className="history">
-        <div className="history__head">
-          <h3><span aria-hidden="true">📈</span> Rating over time</h3>
-          <Segmented label="Show" options={RANGE_OPTIONS} value={range} onChange={onRange} />
-        </div>
-
-        {history.status === 'loading' && <p className="muted chart-empty">Loading history…</p>}
-        {history.status === 'error' && <p className="notice notice--error" role="alert">Couldn’t load rating history. {history.error}</p>}
-        {ready && !history.data.length && <p className="muted chart-empty">No rating history yet.</p>}
-        {first && (
-          <p className="muted small history__facts">
-            First rated {formatMonth(first.date)} · {formatNumber(history.data.length)} rating {history.data.length === 1 ? 'period' : 'periods'} on record
-          </p>
-        )}
-        {series && <HistoryChart series={series} range={range} compact={isMobile} />}
-
-        <div className="compare">
-          {compare ? (
-            <p className="compare__current">
-              <span aria-hidden="true">🤝</span> Comparing with <strong>{compare.player.name}</strong>
-              {compare.history.status === 'loading' && ' (loading…)'}
-              {compare.history.status === 'ready' && !compare.history.data.length && ' (no history yet)'}
-              <button type="button" className="link-button" onClick={onClearCompare}>Remove</button>
-            </p>
-          ) : (
-            <PlayerSearch players={players} onSelect={onCompare} size="small" placeholder="Compare with a friend or rival…" />
-          )}
-          {compare?.history.status === 'error' && <p className="notice notice--error" role="alert">Couldn’t load {compare.player.name}’s history. {compare.history.error}</p>}
-        </div>
-      </div>
+      {history.status === 'error' && <p className="notice notice--error" role="alert">Couldn’t load rating history. {history.error}</p>}
     </section>
   );
 }

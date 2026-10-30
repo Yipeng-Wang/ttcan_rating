@@ -23,12 +23,6 @@ export const ACTIVITY_OPTIONS = [
   { id: '36', label: '3 years' },
 ];
 
-export const RANGE_OPTIONS = [
-  { id: '', label: 'All' },
-  { id: '10y', label: '10 yrs', years: 10 },
-  { id: '5y', label: '5 yrs', years: 5 },
-  { id: '2y', label: '2 yrs', years: 2 },
-];
 
 // ---- loading -------------------------------------------------------------
 
@@ -317,31 +311,4 @@ export function niceTicks(min, max, target = 5) {
   return { domain: [lo, hi], ticks };
 }
 
-/** January-1st ticks spaced so there are at most `target` of them. */
-export function yearTicks(minTime, maxTime, target = 6) {
-  const first = new Date(minTime).getUTCFullYear() + 1;
-  const last = new Date(maxTime).getUTCFullYear();
-  const span = Math.max(1, last - first + 1);
-  const every = [1, 2, 5, 10].find(n => span / n <= target) || 10;
-  const ticks = [];
-  for (let y = first; y <= last; y++) if (y % every === 0) ticks.push(Date.UTC(y, 0, 1));
-  return ticks;
-}
 
-/**
- * Merge two histories onto one time axis. Each row keeps the actual value where the
- * player had a rating that period (for the line) and the latest known value (for the tooltip).
- */
-export function mergeHistories(a, b, fromTime = -Infinity) {
-  const times = [...new Set([...a, ...(b || [])].map(e => e.t))].filter(t => t >= fromTime).sort((x, y) => x - y);
-  const byTime = list => new Map((list || []).map(e => [e.t, e.rating]));
-  const ma = byTime(a), mb = byTime(b);
-  let lastA = null, lastB = null;
-  for (const e of a) if (e.t < fromTime) lastA = e.rating;
-  for (const e of b || []) if (e.t < fromTime) lastB = e.rating;
-  return times.map(t => {
-    if (ma.has(t)) lastA = ma.get(t);
-    if (mb.has(t)) lastB = mb.get(t);
-    return { t, a: ma.has(t) ? ma.get(t) : null, b: mb.has(t) ? mb.get(t) : null, aNow: lastA, bNow: lastB };
-  });
-}
