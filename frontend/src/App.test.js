@@ -212,7 +212,8 @@ describe('app', () => {
     expect(screen.getByRole('radio', { name: '★★' })).toHaveAttribute('aria-checked', 'true'); // the default
     fireEvent.change(screen.getByLabelText('Match 1 opponent rating'), { target: { value: '1380' } });
     fireEvent.change(screen.getByLabelText('Match 2 opponent rating'), { target: { value: '1650' } });
-    expect(screen.getAllByRole('listitem').filter(li => li.className === 'calc-match')).toHaveLength(3); // three rows to start
+    expect(screen.getAllByRole('listitem').filter(li => li.className === 'calc-match')).toHaveLength(2); // two rows to start
+    fireEvent.click(screen.getByRole('button', { name: '+ Add a match' }));
     fireEvent.change(screen.getByLabelText('Match 3 opponent rating'), { target: { value: '1450' } });
     fireEvent.click(screen.getAllByRole('radio', { name: 'I lost' })[2]);
 
