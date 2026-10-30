@@ -196,3 +196,23 @@ def test_player_page_urls_have_a_clean_query_string():
 def test_placeholder_birth_years_are_ignored():
     assert s.extract_birth_year(BeautifulSoup("Year of Birth: 1901", "html.parser")) is None
     assert s.extract_birth_year(BeautifulSoup("Year of Birth: 2012", "html.parser")) == 2012
+
+
+def test_rebuild_derived_adds_growth_and_similar(tmp_path):
+    out = tmp_path / "data"
+    players = [{**p, "birthYear": 2016} for p in _players(3)]  # U13, so they get growth matches
+    history = {
+        "0": [[1, "2024-09-01", 850], [2, "2025-09-01", 900], [3, "2026-10-01", 1000]],
+        "1": [[1, "2025-09-01", 1000], [2, "2026-10-01", 1001]],
+        "2": [[1, "2026-09-01", 1002]],
+    }
+    s.publish(s.build_output(players, history, "427", "test"), out)
+    doc = json.loads((out / "players.json").read_text())
+    by_id = {p["id"]: p for p in doc["players"]}
+    assert by_id["0"]["growth"] == 100 and by_id["0"]["growthSince"] == "2025-09-01"
+    assert "growth" not in by_id["2"]
+    assert list((out / "similar").glob("*.json"))
+    (out / "similar").rename(tmp_path / "gone")
+    s.rebuild_derived(out)
+    assert list((out / "similar").glob("*.json"))
+    assert json.loads((out / "players.json").read_text())["players"] == doc["players"]

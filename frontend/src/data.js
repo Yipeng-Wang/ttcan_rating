@@ -56,6 +56,8 @@ export function toAppPlayer(raw, currentYear = new Date().getFullYear()) {
     age: raw.birthYear ? currentYear - raw.birthYear : null,
     birthYear: raw.birthYear || null,
     provisional: Boolean(raw.temporary),
+    growth: raw.growth ?? null,           // rating change over the last 12 months, when comparable
+    growthSince: raw.growthSince || null,
   };
 }
 

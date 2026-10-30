@@ -169,8 +169,9 @@ describe('app', () => {
     const doc = {
       ...playersDoc,
       players: [
-        { id: '500', name: 'NEW Kid', province: 'ON', gender: 'F', rating: 1200, lastPlayed: '2026-01-01', birthYear: 2011 },
+        { id: '500', name: 'NEW Kid', province: 'ON', gender: 'F', rating: 1200, lastPlayed: '2026-01-01', birthYear: 2014 },
         { id: '564', name: 'OLDER Star', province: 'ON', gender: 'F', rating: 1650, lastPlayed: '2015-01-01', birthYear: 1996 },
+        { id: '628', name: 'TEEN Player', province: 'ON', gender: 'F', rating: 1300, lastPlayed: '2026-01-01', birthYear: 2010, growth: 150, growthSince: '2025-01-01' },
       ],
     };
     window.history.replaceState(null, '', '/?player=500');
@@ -178,18 +179,26 @@ describe('app', () => {
       '/data/players.json': { body: doc },
       '/data/history/52.json': { body: {
         500: [[1, '2024-01-01', 800], [2, '2025-01-01', 1000], [3, '2026-01-01', 1200]],
-        564: [[1, '2009-01-01', 790], [2, '2010-01-01', 1010], [3, '2011-01-01', 1190], [4, '2012-01-01', 1400], [5, '2013-01-01', 1550], [6, '2014-01-01', 1600]],
+        564: [[1, '2006-01-01', 790], [2, '2007-01-01', 1010], [3, '2008-01-01', 1190], [4, '2009-01-01', 1400], [5, '2010-01-01', 1550], [6, '2011-01-01', 1600]],
+        628: [[1, '2025-01-01', 1150], [2, '2026-01-01', 1300]],
       } },
-      '/data/similar/52.json': { body: { 500: [{ id: '564', by: 'age', at: 15, rating: 1190, match: 'path' }] } },
+      '/data/similar/52.json': { body: { 500: [{ id: '564', by: 'age', at: 12, rating: 1190, match: 'path' }], 628: [{ id: '564', by: 'age', at: 16, rating: 1600, match: 'path' }] } },
     });
     render(<App />);
     const tab = await screen.findByRole('tab', { name: /OLDER Star/ });
     expect(tab).toHaveTextContent('Similar climb');
-    expect(tab).toHaveTextContent('At age 15: 1,190');
+    expect(tab).toHaveTextContent('At age 12: 1,190');
     expect(tab).toHaveTextContent('+1y 1,400 (+210)');
     expect(tab).toHaveTextContent('+3y 1,600 (+410)');
     expect(screen.getByText('NEW Kid', { selector: '.legend li' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'See OLDER Star’s full profile' }));
-    expect(await screen.findByRole('region', { name: 'OLDER Star' })).toBeInTheDocument();
+    // older players don't get the section
+    fireEvent.click(within(screen.getByRole('table', { name: /Top players/ })).getByRole('button', { name: 'TEEN Player' }));
+    expect(await screen.findByRole('region', { name: 'TEEN Player' })).toBeInTheDocument();
+    expect(screen.queryByText('Players who grew like you')).not.toBeInTheDocument();
+    // the climbers table ranks by 12-month gain and the tile shows the same number
+    const climbers = screen.getByRole('table', { name: /Fastest climbers/ });
+    expect(within(climbers).getAllByRole('row')[1]).toHaveTextContent('TEEN Player');
+    expect(within(climbers).getAllByRole('row')[1]).toHaveTextContent('+150');
+    expect(within(screen.getByRole('region', { name: 'TEEN Player' })).getByText('+150')).toBeInTheDocument();
   });
 });

@@ -26,7 +26,7 @@ import requests
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
-from trajectories import find_similar
+from trajectories import find_similar, yearly_growth
 
 load_dotenv()
 
@@ -374,8 +374,18 @@ def build_output(players: List[Dict], history: Dict[str, List], period: str, sou
             shards.setdefault(shard_of(player_id), {})[player_id] = entries
         for shard, content in shards.items():
             files[f"history/{shard}.json"] = content
+        add_growth(players_doc["players"], history)
         files.update(similar_files(find_similar(players_doc["players"], history)))
     return files
+
+
+def add_growth(players: List[Dict], history: Dict[str, List]) -> None:
+    """Add each player's 12-month rating change (growth, growthSince) where it is known."""
+    growth = yearly_growth(history)
+    for p in players:
+        p.pop("growth", None)
+        p.pop("growthSince", None)
+        p.update(growth.get(p["id"], {}))
 
 
 def similar_files(similar: Dict[str, List[Dict]]) -> Dict[str, object]:
@@ -386,24 +396,31 @@ def similar_files(similar: Dict[str, List[Dict]]) -> Dict[str, object]:
     return {f"similar/{shard}.json": content for shard, content in shards.items()}
 
 
-def rebuild_similar(out_dir: Path) -> int:
-    """Recompute similar/ from the published players.json and history/ without scraping."""
-    players = json.loads((out_dir / "players.json").read_text())["players"]
+def rebuild_derived(out_dir: Path) -> None:
+    """Recompute 12-month growth and similar/ from the published data, without scraping."""
+    players_path = out_dir / "players.json"
+    doc = json.loads(players_path.read_text())
     history: Dict[str, List] = {}
     for shard in (out_dir / "history").glob("*.json"):
         history.update(json.loads(shard.read_text()))
-    files = similar_files(find_similar(players, history))
+
+    add_growth(doc["players"], history)
+    files = similar_files(find_similar(doc["players"], history))
+
     staging = out_dir / "similar.staging"
     shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir()
     for rel_path, content in files.items():
         path = staging / rel_path.split("/", 1)[1]
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(content, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    tmp = players_path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     shutil.rmtree(out_dir / "similar", ignore_errors=True)
     staging.rename(out_dir / "similar")
-    count = sum(len(c) for c in files.values())
-    logger.info("Wrote similar-trajectory matches for %s players in %s files", count, len(files))
-    return count
+    tmp.replace(players_path)
+    logger.info("Updated 12-month growth for %s players and similar matches for %s players",
+                sum(1 for p in doc["players"] if "growth" in p), sum(len(c) for c in files.values()))
 
 
 def published_period(out_dir: Path) -> Optional[str]:
@@ -463,15 +480,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--force", action="store_true", help="publish even if the player count dropped sharply")
     parser.add_argument("--skip-if-current", action="store_true",
                         help="do nothing if the published data already has this rating period")
-    parser.add_argument("--rebuild-similar", action="store_true",
-                        help="only recompute similar-trajectory matches from the published data")
+    parser.add_argument("--rebuild-derived", action="store_true",
+                        help="only recompute 12-month growth and similar matches from the published data")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
                         handlers=[logging.FileHandler(BACKEND_DIR / "scraper.log"), logging.StreamHandler(sys.stdout)])
 
-    if args.rebuild_similar:
-        rebuild_similar(args.out)
+    if args.rebuild_derived:
+        rebuild_derived(args.out)
         return 0
 
     try:

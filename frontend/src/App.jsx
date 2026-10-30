@@ -10,6 +10,7 @@ import Filters from './components/Filters';
 import PlayerCard from './components/PlayerCard';
 import Distribution from './components/Distribution';
 import Leaderboard from './components/Leaderboard';
+import ClimbersBoard from './components/ClimbersBoard';
 
 function useIsMobile() {
   const query = '(max-width: 640px)';
@@ -40,12 +41,16 @@ function useHistory(playerId) {
   return state;
 }
 
-function describe(filters, count) {
+function describeScope(filters) {
   const parts = [filters.gender ? GENDER_GROUPS[filters.gender] : 'Players'];
   if (filters.province) parts.push(`in ${PROVINCES[filters.province] || filters.province}`);
   if (filters.age) parts.push(AGE_GROUPS.find(g => g.id === filters.age)?.label);
   if (filters.active) parts.push(`who played in the last ${ACTIVITY_OPTIONS.find(o => o.id === filters.active)?.label}`);
-  return `${parts.join(' ')} · ${formatNumber(count)} ${count === 1 ? 'player' : 'players'}`;
+  return parts.join(' ');
+}
+
+function describe(filters, count) {
+  return `${describeScope(filters)} · ${formatNumber(count)} ${count === 1 ? 'player' : 'players'}`;
 }
 
 function App() {
@@ -130,6 +135,7 @@ function App() {
           <Filters filters={filters} provinces={provinces} onChange={update} />
           <Distribution players={filtered} selected={player} description={description} compact={isMobile} />
           <Leaderboard players={filtered} ranks={ranks} selectedId={player?.id} description={description} onSelect={selectPlayer} />
+          <ClimbersBoard players={filtered} scope={describeScope(filters)} selectedId={player?.id} onSelect={selectPlayer} />
         </main>
       )}
 

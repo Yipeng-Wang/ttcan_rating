@@ -6,6 +6,7 @@ import {
 import GrowthMatches from './GrowthMatches';
 
 const MEDALS = { 1: '🥇', 2: '🥈', 3: '🥉' };
+const GROWTH_MAX_AGE = 13; // "Players who grew like you" is for U13 players
 const SCOPE_ICONS = { canada: '🍁', province: '📍', gender: '🏓', age: '⭐' };
 
 function Change({ change }) {
@@ -69,7 +70,10 @@ export default function PlayerCard({
   const ready = history.status === 'ready';
   const change = ready ? latestChange(history.data) : null;
   const best = ready ? personalBest(history.data) : null;
-  const pastYear = ready ? yearChange(history.data, player.rating) : null;
+  // the scraper's 12-month change matches the Fastest climbers table; fall back for newer players
+  const pastYear = player.growth != null
+    ? { delta: player.growth, since: player.growthSince, sinceStart: false }
+    : ready ? yearChange(history.data, player.rating) : null;
   const group = rivalGroup(allPlayers, player, activeFilter);
   const canada = standing.scopes[0];
   const better = standing.inPool ? betterThanPercent(canada.rank, canada.total) : null;
@@ -143,7 +147,7 @@ export default function PlayerCard({
 
       <NearbyPlayers group={group} player={player} onSelect={onSelect} />
 
-      {ready && history.data.length > 0 && (
+      {ready && history.data.length > 0 && player.age != null && player.age <= GROWTH_MAX_AGE && (
         <GrowthMatches player={player} history={history.data} playersById={playersById} onSelect={onSelect} compact={isMobile} />
       )}
 

@@ -31,6 +31,7 @@ NEAR_MAX_OFFSET = 4    # first widen the search by up to a year either side
 WIDE_MAX_OFFSET = 20   # then by up to five years, for unusual ages and long careers
 ANY_AGE_OFFSET = 400   # finally any age, so every player gets three matches
 MATCHES = 3
+MAX_AGE = 13           # the site shows growth matches to U13 players only
 
 
 def years(iso: str) -> float:
@@ -62,8 +63,12 @@ def resample(points: List[Tuple[float, int]]) -> Dict[int, float]:
     return grid
 
 
-def find_similar(players: List[Dict], history: Dict[str, List[List]]) -> Dict[str, List[Dict]]:
-    """{player id: [{"id", "by", "at", "rating", "match"}, ...]} with three matches per player.
+def find_similar(players: List[Dict], history: Dict[str, List[List]], current_year: Optional[int] = None,
+                 max_age: Optional[int] = MAX_AGE) -> Dict[str, List[Dict]]:
+    """{player id: [{"id", "by", "at", "rating", "match"}, ...]} with three matches per U13 player.
+
+    Matches for players aged `max_age` or under this year (pass None for everyone); the
+    matched players can be any age now.
 
     "at" is the matched player's own age (or career year) at the matching point, and
     "rating" their rating there.
@@ -85,12 +90,24 @@ def find_similar(players: List[Dict], history: Dict[str, List[List]]) -> Dict[st
             if gender:
                 index[(mode, "", b)].append((pid, rating))  # the any-gender pool
 
+    if current_year is None:
+        from datetime import date
+        current_year = date.today().year
+
+    def wanted(pid: str) -> bool:
+        if max_age is None:
+            return True
+        birth_year = by_id[pid].get("birthYear")
+        return bool(birth_year) and current_year - birth_year <= max_age
+
     def future(q: str, b: int) -> int:
         """How many of the 1- and 2-year-later points the candidate has."""
         return (b + 4 in grids[q]) + (b + 8 in grids[q])
 
     results: Dict[str, List[Dict]] = {}
     for pid, grid in grids.items():
+        if not wanted(pid):
+            continue
         mode = modes[pid]
         gender = by_id[pid].get("gender") or ""
         end = max(grid)
@@ -159,3 +176,33 @@ def find_similar(players: List[Dict], history: Dict[str, List[List]]) -> Dict[st
                 for q, b, kind in chosen
             ]
     return results
+
+
+def yearly_growth(history: Dict[str, List[List]]) -> Dict[str, Dict]:
+    """Rating change over the 12 months before the latest rating period.
+
+    {player id: {"growth": change, "growthSince": date of the rating a year ago}} for players
+    who have played in the last year and whose rating a year ago is recent enough to compare
+    (from within six months of that date). Players first rated less than 18 months ago are left
+    out: their early ratings jump while TTCAN calibrates them.
+    """
+    dates = [e[1] for entries in history.values() for e in entries]
+    if not dates:
+        return {}
+    latest = max(dates)
+    y, m, d = (int(x) for x in latest.split("-"))
+    cutoff = f"{y - 1:04d}-{m:02d}-{d:02d}"
+    six_months_earlier = f"{y - 2 if m <= 6 else y - 1:04d}-{(m - 7) % 12 + 1:02d}-{d:02d}"
+    growth: Dict[str, Dict] = {}
+    for pid, entries in history.items():
+        if not entries or entries[0][1] > six_months_earlier:
+            continue  # rated for less than 18 months
+        base = None
+        for entry in entries:
+            if entry[1] <= cutoff:
+                base = entry
+        last = entries[-1]
+        if base is None or base[1] < six_months_earlier or last[1] <= cutoff:
+            continue
+        growth[pid] = {"growth": last[2] - base[2], "growthSince": base[1]}
+    return growth
