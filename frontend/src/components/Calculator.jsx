@@ -122,7 +122,7 @@ export default function Calculator({ players, initialPlayer }) {
     ? { name: initialPlayer.name, rating: String(initialPlayer.rating), provisional: initialPlayer.provisional }
     : { name: '', rating: '', provisional: false }));
   const [stars, setStars] = useState('2');
-  const [matches, setMatches] = useState(() => [newMatch(), newMatch()]);
+  const [matches, setMatches] = useState(() => [newMatch(), newMatch(), newMatch()]);
 
   const myRating = parseRating(me.rating);
   const starCount = Number(stars);
