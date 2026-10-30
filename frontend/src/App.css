@@ -221,6 +221,10 @@ select {
 .player-card > .small { margin-top: 8px; }
 
 
+/* rating journey (players over U13) */
+.journey { margin-top: 26px; }
+.journey > .muted { margin: 2px 0 10px; }
+
 /* players who grew like you */
 .growth { margin-top: 26px; }
 .growth > .muted { margin: 2px 0 12px; max-width: 46em; }

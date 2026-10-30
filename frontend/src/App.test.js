@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 import {
-  betterThanPercent, formatMonth, formatYears, growthPoints, histogram, ratingAt, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters,
+  betterThanPercent, yearTicks, formatMonth, formatYears, growthPoints, histogram, ratingAt, latestChange, nearbyPlayers, personalBest, rivalGroup, yearChange, loadPlayerHistory, matchesFilters,
   niceTicks, playerStanding, searchPlayers, toAppPlayer,
 } from './data';
 
@@ -78,6 +78,11 @@ describe('data helpers', () => {
     expect(s.scopes.find(x => x.id === 'province')).toMatchObject({ rank: 1, total: 1 });
     expect(s.scopes.find(x => x.id === 'age')).toMatchObject({ label: 'U15 boys', rank: 1, total: 1 });
     expect(playerStanding(players, players[2], '12', NOW).inPool).toBe(false);
+  });
+
+  test('year ticks stay readable over long histories', () => {
+    expect(yearTicks(Date.UTC(2011, 0, 1), Date.UTC(2026, 9, 1), 7).map(t => new Date(t).getUTCFullYear())).toEqual([2015, 2020, 2025]);
+    expect(yearTicks(Date.UTC(2023, 5, 1), Date.UTC(2026, 9, 1), 7).map(t => new Date(t).getUTCFullYear())).toEqual([2024, 2025, 2026]);
   });
 
   test('chart helpers produce round ticks and change summaries', () => {
@@ -195,6 +200,9 @@ describe('app', () => {
     fireEvent.click(within(screen.getByRole('table', { name: /Top players/ })).getByRole('button', { name: 'TEEN Player' }));
     expect(await screen.findByRole('region', { name: 'TEEN Player' })).toBeInTheDocument();
     expect(screen.queryByText('Players who grew like you')).not.toBeInTheDocument();
+    // ...they see their own rating journey instead
+    expect(await screen.findByText('Rating journey')).toBeInTheDocument();
+    expect(screen.getByText('From 1,150 in Jan 2025 to 1,300 in Jan 2026')).toBeInTheDocument();
     // the climbers table ranks by 12-month gain and the tile shows the same number
     const climbers = screen.getByRole('table', { name: /Fastest climbers/ });
     expect(within(climbers).getAllByRole('row')[1]).toHaveTextContent('TEEN Player');

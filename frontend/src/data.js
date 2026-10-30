@@ -299,6 +299,17 @@ export function histogram(players, binSize = 100) {
   return bins;
 }
 
+/** January-1st ticks (UTC timestamps) spaced so there are at most `target` of them. */
+export function yearTicks(minTime, maxTime, target = 6) {
+  const first = new Date(minTime).getUTCFullYear() + 1;
+  const last = new Date(maxTime).getUTCFullYear();
+  const span = Math.max(1, last - first + 1);
+  const every = [1, 2, 5, 10].find(n => span / n <= target) || 10;
+  const ticks = [];
+  for (let y = first; y <= last; y++) if (y % every === 0) ticks.push(Date.UTC(y, 0, 1));
+  return ticks;
+}
+
 /** Round axis ticks: 3173..3546 -> [3200, 3300, 3400, 3500] with a domain that contains them. */
 export function niceTicks(min, max, target = 5) {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return { domain: [0, 1], ticks: [0, 1] };
