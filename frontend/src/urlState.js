@@ -1,6 +1,6 @@
 // Keeps the selected player, comparison and filters in the address bar so a view can be shared.
 
-const KEYS = ['player', 'province', 'gender', 'age', 'active'];
+const KEYS = ['page', 'player', 'province', 'gender', 'age', 'active'];
 
 export function readUrlState(search = window.location.search) {
   const params = new URLSearchParams(search);

@@ -16,6 +16,7 @@ TTCAN rating site ──scrape──▶ frontend/public/data/*.json ──npm ru
    - `history/<n>.json`: rating history, split into 64 shards by `player ID % 64`.
    - `similar/<n>.json`: for each U13 player, three players of the same gender whose rating grew the same way at the same age (see `backend/trajectories.py`), sharded the same way.
 3. The React app loads `players.json` once, and loads one small history shard when you pick a player.
+4. The **Rating calculator** page (`?page=calculator`) estimates the points won or lost at a tournament from the opponents' ratings, the results and the event's star level. It follows the points exchange tables and the new-player rules in the [TTCAN Rating System (2016)](http://96.31.42.60/upload/TTCANRatingSystem2016.pdf), implemented in `frontend/src/rating.js`.
 
 No API keys or Google services are involved. The data files are committed, so the repo always holds the last published data.
 

@@ -11,6 +11,12 @@ import PlayerCard from './components/PlayerCard';
 import Distribution from './components/Distribution';
 import Leaderboard from './components/Leaderboard';
 import ClimbersBoard from './components/ClimbersBoard';
+import Calculator from './components/Calculator';
+
+const PAGES = [
+  { id: '', label: 'Ratings', icon: '📊' },
+  { id: 'calculator', label: 'Rating calculator', icon: '🧮' },
+];
 
 function useIsMobile() {
   const query = '(max-width: 640px)';
@@ -108,12 +114,32 @@ function App() {
         </div>
       </header>
 
+      <nav className="tabs" aria-label="Pages">
+        {PAGES.map(p => (
+          <a
+            key={p.id || 'ratings'}
+            href={p.id ? `?page=${p.id}` : '?'}
+            className={`tab${view.page === p.id ? ' is-current' : ''}`}
+            aria-current={view.page === p.id ? 'page' : undefined}
+            onClick={e => { e.preventDefault(); update({ page: p.id }); window.scrollTo?.({ top: 0 }); }}
+          >
+            <span aria-hidden="true">{p.icon}</span> {p.label}
+          </a>
+        ))}
+      </nav>
+
       {dataset.status === 'loading' && <p className="muted loading" role="status">Loading players…</p>}
       {dataset.status === 'error' && (
         <p className="notice notice--error" role="alert">Couldn’t load the ratings ({dataset.error}). Please try again later.</p>
       )}
 
-      {dataset.status === 'ready' && (
+      {dataset.status === 'ready' && view.page === 'calculator' && (
+        <main>
+          <Calculator players={dataset.players} initialPlayer={player} />
+        </main>
+      )}
+
+      {dataset.status === 'ready' && view.page !== 'calculator' && (
         <main>
           <PlayerSearch players={dataset.players} onSelect={selectPlayer} label="Find a player" placeholder="Type a name, like yours!" />
 
