@@ -52,7 +52,7 @@ export default function PlayerSearch({ players, onSelect, placeholder = 'Search 
       </div>
       {showList && (
         <ul className="search__list" id={listId} role="listbox">
-          {results.length === 0 && <li className="search__empty">No players match “{query}”</li>}
+          {results.length === 0 && <li className="search__empty">No one called “{query}” yet. Check the spelling?</li>}
           {results.map((p, i) => (
             <li
               key={p.id}

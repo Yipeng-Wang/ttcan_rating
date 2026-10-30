@@ -1,5 +1,5 @@
 import React from 'react';
-import { ACTIVITY_OPTIONS, AGE_GROUPS, GENDERS, PROVINCES } from '../data';
+import { ACTIVITY_OPTIONS, AGE_GROUPS, GENDER_GROUPS, PROVINCES } from '../data';
 
 function Select({ label, value, onChange, children }) {
   return (
@@ -41,9 +41,9 @@ export default function Filters({ filters, provinces, onChange }) {
         <option value="">All provinces</option>
         {provinces.map(code => <option key={code} value={code}>{PROVINCES[code] || code}</option>)}
       </Select>
-      <Select label="Gender" value={filters.gender} onChange={set('gender')}>
-        <option value="">All</option>
-        {Object.entries(GENDERS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+      <Select label="Who" value={filters.gender} onChange={set('gender')}>
+        <option value="">Everyone</option>
+        {Object.entries(GENDER_GROUPS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
       </Select>
       <Select label="Age group" value={filters.age} onChange={set('age')}>
         <option value="">All ages</option>

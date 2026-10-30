@@ -28,8 +28,8 @@ export default function Distribution({ players, selected, description, compact }
   return (
     <section className="card" aria-labelledby="dist-title">
       <div className="card__head">
-        <h2 id="dist-title">Rating distribution</h2>
-        <p className="muted">{description}{showMarker ? ` · ${selected.name} highlighted` : ''}</p>
+        <h2 id="dist-title"><span aria-hidden="true">📊</span> Where does everyone fit?</h2>
+        <p className="muted">{description}{showMarker ? ` · the pin shows ${selected.name}` : ''}</p>
       </div>
       <div className="chart" style={{ height: compact ? 200 : 240 }}>
         <ResponsiveContainer width="100%" height="100%">
@@ -41,15 +41,20 @@ export default function Distribution({ players, selected, description, compact }
             />
             <YAxis domain={domain} ticks={ticks} tickFormatter={formatNumber} width={48} axisLine={false} tickLine={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
             <Tooltip content={<BinTooltip />} cursor={{ fill: 'var(--hover-wash)' }} isAnimationActive={false} />
-            <Bar dataKey="count" maxBarSize={24} radius={[4, 4, 0, 0]} isAnimationActive={false}>
+            <Bar dataKey="count" maxBarSize={24} radius={[6, 6, 0, 0]} isAnimationActive={false}>
               {bins.map((b, i) => (
                 <Cell key={b.start} fill={showMarker && i !== selectedBin ? 'var(--deemphasis)' : 'var(--series-1)'} />
               ))}
             </Bar>
             {showMarker && (
               <ReferenceLine
-                x={selected.rating} stroke="var(--text-secondary)" strokeWidth={1}
-                label={{ value: formatNumber(selected.rating), position: 'top', fill: 'var(--text-secondary)', fontSize: 12 }}
+                x={selected.rating} stroke="var(--text-primary)" strokeWidth={2}
+                label={{
+                  value: `📍 ${formatNumber(selected.rating)}`,
+                  // keep the label on the chart when the pin is near either edge
+                  position: selected.rating > max * 0.88 ? 'insideTopRight' : selected.rating < max * 0.08 ? 'insideTopLeft' : 'top',
+                  fill: 'var(--text-primary)', fontSize: 13, fontWeight: 700,
+                }}
               />
             )}
           </BarChart>

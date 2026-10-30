@@ -10,6 +10,8 @@ export const PROVINCES = {
 };
 
 export const GENDERS = { F: 'Female', M: 'Male' };
+// Friendlier group names used in rankings and filters
+export const GENDER_GROUPS = { F: 'Girls & women', M: 'Boys & men' };
 
 // Age groups follow the existing "age at or under N" rule.
 export const AGE_GROUPS = [9, 10, 11, 12, 13, 14, 15, 17, 19].map(n => ({ id: `u${n}`, max: n, label: `U${n}` }));
@@ -136,12 +138,12 @@ export function playerStanding(players, player, active, now = new Date()) {
     scopes.push({ id: 'province', label: PROVINCES[player.province] || player.province, players: pool.filter(p => p.province === player.province) });
   }
   if (player.gender) {
-    scopes.push({ id: 'gender', label: `${GENDERS[player.gender]} players`, players: pool.filter(p => p.gender === player.gender) });
+    scopes.push({ id: 'gender', label: GENDER_GROUPS[player.gender].toLowerCase(), players: pool.filter(p => p.gender === player.gender) });
   }
   const group = ageGroupOf(player.age);
   if (group) {
     const sameGroup = pool.filter(p => p.age != null && p.age <= group.max && (!player.gender || p.gender === player.gender));
-    scopes.push({ id: 'age', label: `${group.label}${player.gender ? ` ${player.gender === 'F' ? 'female' : 'male'}` : ''}`, players: sameGroup });
+    scopes.push({ id: 'age', label: `${group.label}${player.gender ? ` ${player.gender === 'F' ? 'girls' : 'boys'}` : ''}`, players: sameGroup });
   }
   const inPool = pool.some(p => p.id === player.id);
   return {
@@ -150,9 +152,22 @@ export function playerStanding(players, player, active, now = new Date()) {
   };
 }
 
-export function topPercent(rank, total) {
-  if (!total) return null;
-  return Math.max(1, Math.ceil((rank / total) * 100));
+/** Share of players rated below, as a whole percent ("better than 95%"). */
+export function betterThanPercent(rank, total) {
+  if (!total || total < 2) return null;
+  return Math.floor(((total - rank) / total) * 100);
+}
+
+/** The next round-hundred goal above a rating, and how far along the current hundred the player is. */
+export function nextMilestone(rating, step = 100) {
+  const goal = (Math.floor(rating / step) + 1) * step;
+  return { goal, toGo: goal - rating, progress: (rating % step) / step };
+}
+
+/** Highest rating in a history. */
+export function personalBest(history) {
+  if (!history.length) return null;
+  return history.reduce((best, e) => (e.rating > best.rating ? e : best), history[0]);
 }
 
 /** Change between the last two rating periods in a history. */

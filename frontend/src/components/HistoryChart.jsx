@@ -30,7 +30,7 @@ function EndDot({ data, dataKey, color }) {
   // eslint-disable-next-line react/display-name
   return props => {
     if (props.index !== last) return null;
-    return <circle cx={props.cx} cy={props.cy} r={5} fill={color} stroke="var(--surface)" strokeWidth={2} key={`end-${dataKey}`} />;
+    return <circle cx={props.cx} cy={props.cy} r={6} fill={color} stroke="var(--surface)" strokeWidth={2} key={`end-${dataKey}`} />;
   };
 }
 
@@ -74,9 +74,9 @@ export default function HistoryChart({ series, range, compact }) {
             {SERIES.slice(0, other ? 2 : 1).map(s => (
               <Line
                 key={s.key} dataKey={s.key} name={s.key} connectNulls type="linear"
-                stroke={s.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+                stroke={s.color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
                 dot={EndDot({ data, dataKey: s.key, color: s.color })}
-                activeDot={{ r: 5, fill: s.color, stroke: 'var(--surface)', strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: s.color, stroke: 'var(--surface)', strokeWidth: 2 }}
                 isAnimationActive={false}
               />
             ))}

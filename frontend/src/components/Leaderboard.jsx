@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { GENDERS, formatMonth, formatNumber } from '../data';
 
 const PAGE = 25;
+const MEDALS = { 1: ['🥇', '1st place'], 2: ['🥈', '2nd place'], 3: ['🥉', '3rd place'] };
 
 function Row({ player, rank, selected, onSelect }) {
   return (
     <tr className={selected ? 'is-selected' : undefined} aria-current={selected ? 'true' : undefined}>
-      <td className="num rank">{rank}</td>
+      <td className="num rank">{MEDALS[rank] ? <span className="medal" role="img" aria-label={MEDALS[rank][1]}>{MEDALS[rank][0]}</span> : rank}</td>
       <td className="name">
         <button type="button" className="player-link" onClick={() => onSelect(player)}>{player.name}</button>
         <span className="row-meta">
@@ -34,7 +35,7 @@ export default function Leaderboard({ players, ranks, selectedId, description, o
   return (
     <section className="card" aria-labelledby="board-title">
       <div className="card__head">
-        <h2 id="board-title">Top players</h2>
+        <h2 id="board-title"><span aria-hidden="true">🏆</span> Top players</h2>
         <p className="muted">{description}</p>
       </div>
       {players.length === 0 ? (
@@ -64,7 +65,7 @@ export default function Leaderboard({ players, ranks, selectedId, description, o
       )}
       {shown < players.length && (
         <div className="board__more">
-          <button type="button" className="button" onClick={() => setShown(s => s + PAGE * 2)}>Show more</button>
+          <button type="button" className="button" onClick={() => setShown(s => s + PAGE * 2)}>Show more players</button>
           <span className="muted small">Showing {formatNumber(shown)} of {formatNumber(players.length)}</span>
         </div>
       )}

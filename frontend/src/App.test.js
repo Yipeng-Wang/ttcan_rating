@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import App from './App';
 import {
-  formatMonth, histogram, latestChange, loadPlayerHistory, matchesFilters, mergeHistories,
+  betterThanPercent, formatMonth, histogram, latestChange, nextMilestone, personalBest, loadPlayerHistory, matchesFilters, mergeHistories,
   niceTicks, playerStanding, searchPlayers, toAppPlayer, yearTicks,
 } from './data';
 
@@ -58,7 +58,7 @@ describe('data helpers', () => {
     const s = playerStanding(players, players[3], '', NOW);
     expect(s.scopes.find(x => x.id === 'canada')).toMatchObject({ rank: 2, total: 4 });
     expect(s.scopes.find(x => x.id === 'province')).toMatchObject({ rank: 1, total: 1 });
-    expect(s.scopes.find(x => x.id === 'age')).toMatchObject({ label: 'U15 male', rank: 1, total: 1 });
+    expect(s.scopes.find(x => x.id === 'age')).toMatchObject({ label: 'U15 boys', rank: 1, total: 1 });
     expect(playerStanding(players, players[2], '12', NOW).inPool).toBe(false);
   });
 
@@ -72,6 +72,9 @@ describe('data helpers', () => {
       { t: 2, a: null, b: 20, aNow: 10, bNow: 20 },
       { t: 3, a: 30, b: null, aNow: 30, bNow: 20 },
     ]);
+    expect(nextMilestone(1663)).toEqual({ goal: 1700, toGo: 37, progress: 0.63 });
+    expect(personalBest([{ rating: 5 }, { rating: 9 }, { rating: 7 }])).toEqual({ rating: 9 });
+    expect(betterThanPercent(2, 4)).toBe(50);
     expect(latestChange([{ date: '2026-08-04', rating: 4063 }, { date: '2026-09-07', rating: 4071 }])).toEqual({ delta: 8, since: '2026-08-04' });
     expect(histogram(players, 1000).map(b => b.count)).toEqual([0, 3, 0, 0, 1]);
   });
@@ -88,7 +91,7 @@ describe('app', () => {
   test('shows the leaderboard and tells same-name players apart in search', async () => {
     mockFetch({ '/data/players.json': { body: playersDoc } });
     render(<App />);
-    expect(await screen.findByText(/Period 427/)).toBeInTheDocument();
+    expect(await screen.findByText(/Rating period 427/)).toBeInTheDocument();
     const board = screen.getByRole('table', { name: 'Top players' });
     expect(within(board).getByText('WANG Eugene Zhen')).toBeInTheDocument();
 
@@ -103,14 +106,16 @@ describe('app', () => {
       '/data/history/56.json': { body: { 7864: [[425, '2026-08-04', 4063], [426, '2026-09-07', 4071]] } },
     });
     render(<App />);
-    await screen.findByText(/Period 427/);
+    await screen.findByText(/Rating period 427/);
     fireEvent.change(screen.getByRole('combobox', { name: 'Find a player' }), { target: { value: 'wang' } });
     fireEvent.mouseDown(within(await screen.findByRole('listbox')).getByRole('option'));
 
     const card = await screen.findByRole('region', { name: 'WANG Eugene Zhen' });
     expect(within(card).getByText('4,071')).toBeInTheDocument();
-    expect(await within(card).findByText(/\+8/)).toBeInTheDocument();
-    expect(within(card).getByText('Top 25%')).toBeInTheDocument();
+    expect(await within(card).findByText(/Up 8 since Aug 2026/)).toBeInTheDocument();
+    expect(within(card).getByText('75%')).toBeInTheDocument();
+    expect(within(card).getByText('29 points to go')).toBeInTheDocument();
+    expect(within(card).getByText('That’s right now!')).toBeInTheDocument();
     expect(window.location.search).toBe('?player=7864');
     // selecting a player no longer changes the filters
     expect(screen.getByLabelText('Province')).toHaveValue('');

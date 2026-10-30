@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './App.css';
 import {
-  ACTIVITY_OPTIONS, AGE_GROUPS, GENDERS, PROVINCES, formatMonth, formatNumber,
+  ACTIVITY_OPTIONS, AGE_GROUPS, GENDER_GROUPS, PROVINCES, formatMonth, formatNumber,
   loadPlayerHistory, loadPlayers, matchesFilters, playerStanding, sortByRating,
 } from './data';
 import { readUrlState, writeUrlState } from './urlState';
@@ -41,7 +41,7 @@ function useHistory(playerId) {
 }
 
 function describe(filters, count) {
-  const parts = [filters.gender ? `${GENDERS[filters.gender]} players` : 'Players'];
+  const parts = [filters.gender ? GENDER_GROUPS[filters.gender] : 'Players'];
   if (filters.province) parts.push(`in ${PROVINCES[filters.province] || filters.province}`);
   if (filters.age) parts.push(AGE_GROUPS.find(g => g.id === filters.age)?.label);
   if (filters.active) parts.push(`who played in the last ${ACTIVITY_OPTIONS.find(o => o.id === filters.active)?.label}`);
@@ -96,11 +96,14 @@ function App() {
   return (
     <div className="page">
       <header className="masthead">
-        <h1>TTCAN Ratings</h1>
-        <p className="muted">
-          Table Tennis Canada player ratings
-          {dataset.period && <> · Period {dataset.period} · Updated {formatMonth(dataset.generatedAt?.slice(0, 10))}</>}
-        </p>
+        <div className="masthead__ball" aria-hidden="true">🏓</div>
+        <div>
+          <h1>TTCAN Ratings</h1>
+          <p className="masthead__tagline">Find your rating, see how you’re improving, and cheer on your friends!</p>
+          {dataset.period && (
+            <p className="muted small">Rating period {dataset.period} · Updated {formatMonth(dataset.generatedAt?.slice(0, 10))}</p>
+          )}
+        </div>
       </header>
 
       {dataset.status === 'loading' && <p className="muted loading" role="status">Loading players…</p>}
@@ -110,7 +113,7 @@ function App() {
 
       {dataset.status === 'ready' && (
         <main>
-          <PlayerSearch players={dataset.players} onSelect={selectPlayer} label="Find a player" />
+          <PlayerSearch players={dataset.players} onSelect={selectPlayer} label="Find a player" placeholder="Type a name, like yours!" />
 
           {player && (
             <PlayerCard
