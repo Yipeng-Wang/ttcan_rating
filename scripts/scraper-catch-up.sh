@@ -4,12 +4,14 @@
 # The scraper runs on a self-hosted runner on a computer that isn't always on, and GitHub's
 # own schedule can be skipped. A LaunchAgent runs this script at login and every hour, so the
 # first time the computer is awake each day, the run happens. Safe to run often: it does
-# nothing if a run already succeeded (or is running) today, and gives up after 3 runs a day.
+# nothing if a run already succeeded (or is running) today, gives up after 3 runs a day, and
+# waits for a later check rather than starting a run on a low battery.
 set -uo pipefail
 
 REPO="${TTCAN_REPO:-Yipeng-Wang/ttcan_rating}"
 WORKFLOW="update-data.yml"
 MAX_RUNS_PER_DAY=3
+MIN_BATTERY_PERCENT=30
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 GH="${GH:-gh}"  # override for testing
 
@@ -39,6 +41,12 @@ elif [ "$active" -gt 0 ]; then
 elif [ "$total" -ge "$MAX_RUNS_PER_DAY" ]; then
   log "$total runs failed today; not retrying again until tomorrow"
 else
+  battery=$(${PMSET:-pmset} -g batt 2>/dev/null || true)  # PMSET: override for testing
+  percent=$(grep -oE '[0-9]+%' <<<"$battery" | head -1 | tr -d '%')
+  if grep -q "Battery Power" <<<"$battery" && [ -n "$percent" ] && [ "$percent" -lt "$MIN_BATTERY_PERCENT" ]; then
+    log "on battery at ${percent}%; waiting for a later check"
+    exit 0
+  fi
   if "$GH" workflow run "$WORKFLOW" --repo "$REPO" --ref main >/dev/null 2>&1; then
     log "no successful run today; started one"
   else
