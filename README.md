@@ -62,6 +62,8 @@ npm test
 npm run deploy     # build and publish to the gh-pages branch
 ```
 
+Pushing frontend changes to `main` deploys the site automatically through `.github/workflows/deploy-site.yml`.
+
 ## Tests
 
 ```bash
