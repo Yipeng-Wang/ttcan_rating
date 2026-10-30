@@ -160,8 +160,8 @@ function App() {
 
           <Filters filters={filters} provinces={provinces} onChange={update} />
           <Distribution players={filtered} selected={player} description={description} compact={isMobile} />
-          <Leaderboard players={filtered} ranks={ranks} selectedId={player?.id} description={description} onSelect={selectPlayer} />
           <ClimbersBoard players={filtered} scope={describeScope(filters)} selectedId={player?.id} onSelect={selectPlayer} />
+          <Leaderboard players={filtered} ranks={ranks} selectedId={player?.id} description={description} onSelect={selectPlayer} />
         </main>
       )}
 
