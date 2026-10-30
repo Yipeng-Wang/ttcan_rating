@@ -8,6 +8,8 @@
 # Credentials and secrets
 *.json
 !package*.json
+!frontend/public/manifest.json
+!frontend/public/data/**/*.json
 *.pem
 *.key
 
@@ -120,9 +122,6 @@ jspm_packages/
 .nuxt
 dist
 
-# Gatsby files
-.cache/
-public
 
 # Storybook build outputs
 .out
@@ -131,3 +130,6 @@ public
 # Temporary folders
 tmp/
 temp/
+
+# Scraper page cache
+backend/.cache/
