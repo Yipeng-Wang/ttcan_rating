@@ -28,12 +28,22 @@ jobs:
           ref: main
 
       # actions/setup-python and setup-node can't install on a self-hosted Mac
-      # (they need /Users/runner), so use the machine's python3 and node.
+      # (they need /Users/runner). Use Homebrew Python with OpenSSL, not Apple's LibreSSL build.
       - name: Install scraper dependencies
         working-directory: backend
         run: |
-          python3 -m venv .venv
-          .venv/bin/pip install -q -r requirements.txt
+          if [ -x /opt/homebrew/bin/python3.13 ]; then
+            python_bin=/opt/homebrew/bin/python3.13
+          elif [ -x /usr/local/bin/python3.13 ]; then
+            python_bin=/usr/local/bin/python3.13
+          else
+            echo "Install the runner prerequisite: brew install python@3.13" >&2
+            exit 1
+          fi
+          "$python_bin" -c 'import sys, ssl; print(sys.version); print(ssl.OPENSSL_VERSION); assert ssl.OPENSSL_VERSION.startswith("OpenSSL ")'
+          "$python_bin" -m venv --clear .venv
+          .venv/bin/python -m pip install -q --upgrade pip
+          .venv/bin/python -m pip install -q -r requirements.txt
 
       - name: Scraper tests
         working-directory: backend
@@ -48,7 +58,7 @@ jobs:
         run: |
           if [ -n "$(git status --porcelain frontend/public/data)" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "period=$(python3 -c 'import json; print(json.load(open("frontend/public/data/players.json"))["period"])')" >> "$GITHUB_OUTPUT"
+            echo "period=$(backend/.venv/bin/python -c 'import json; print(json.load(open("frontend/public/data/players.json"))["period"])')" >> "$GITHUB_OUTPUT"
           else
             echo "No new data."
           fi

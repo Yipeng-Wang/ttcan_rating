@@ -484,8 +484,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="only recompute 12-month growth and similar matches from the published data")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
-                        handlers=[logging.FileHandler(BACKEND_DIR / "scraper.log"), logging.StreamHandler(sys.stdout)])
+    # basicConfig is a no-op when a caller (such as pytest) already configured logging.
+    # Avoid opening an unused file handler in that case.
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
+                            handlers=[logging.FileHandler(BACKEND_DIR / "scraper.log"), logging.StreamHandler(sys.stdout)])
 
     if args.rebuild_derived:
         rebuild_derived(args.out)
