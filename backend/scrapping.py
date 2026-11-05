@@ -4,22 +4,24 @@ Output (default: ../frontend/public/data):
     players.json          all players in the current rating period
     history/<shard>.json  rating history, sharded by player ID
 
-Every page fetched from TTCAN is cached under backend/.cache/<period>/, so an
+Every page fetched from TTCAN is cached under backend/.cache/<source-category>/<period>/, so an
 interrupted run picks up where it stopped when you run it again.
 """
 
 import argparse
 import concurrent.futures
 import json
+import hashlib
 import logging
 import os
 import re
 import shutil
 import sys
 import time
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, parse_qsl, urljoin, urlparse
 
 import requests
@@ -43,6 +45,7 @@ MAX_RETRIES = 4
 REQUEST_TIMEOUT = 30
 PAGE_DELAY = 0.2
 CONCURRENT_WORKERS = 8
+LISTING_WORKERS = 4
 HISTORY_CUTOFF_YEAR = 2010
 MAX_RATING = 5000
 HISTORY_SHARDS = 64
@@ -177,9 +180,13 @@ def history_rows(soup: BeautifulSoup) -> Dict[int, Tuple[str, str]]:
 
 def extract_history(*soups: BeautifulSoup) -> List[List]:
     """Return [[periodId, 'YYYY-MM-DD', rating], ...] sorted oldest first, from one or more pages."""
+    return history_entries(*(history_rows(soup) for soup in soups))
+
+
+def history_entries(*pages: Dict[int, Tuple[str, str]]) -> List[List]:
     by_period: Dict[int, List] = {}
-    for soup in soups:
-        for period_id, (period_date, rating) in history_rows(soup).items():
+    for rows in pages:
+        for period_id, (period_date, rating) in rows.items():
             date = parse_long_date(period_date)
             if not date or int(date[:4]) <= HISTORY_CUTOFF_YEAR or int(rating) >= MAX_RATING:
                 continue
@@ -194,22 +201,48 @@ class Fetcher:
 
     def __init__(self, cache_dir: Optional[Path]):
         self.cache_dir = cache_dir
-        self.session = requests.Session()
-        self.session.headers["User-Agent"] = "ttcan-rating-analysis (+https://github.com/Yipeng-Wang/ttcan_rating)"
+        self._local = threading.local()
+        self._pace_lock = threading.Lock()
+        self._next_request = 0.0
         if cache_dir:
             cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def get(self, url: str, params: Optional[Dict] = None, cache_key: Optional[str] = None) -> bytes:
+    @property
+    def session(self):
+        # Each worker owns its cookies and connection pool.
+        if not hasattr(self._local, "session"):
+            self._local.session = requests.Session()
+            self._local.session.headers["User-Agent"] = "ttcan-rating-analysis (+https://github.com/Yipeng-Wang/ttcan_rating)"
+        return self._local.session
+
+    def get(self, url: str, params: Optional[Dict] = None, cache_key: Optional[str] = None,
+            validate: Optional[Callable[[bytes], None]] = None, delay: float = 0) -> bytes:
         cache_file = self.cache_dir / f"{cache_key}.html" if (self.cache_dir and cache_key) else None
         if cache_file and cache_file.exists():
-            return cache_file.read_bytes()
+            try:
+                content = cache_file.read_bytes()
+                if validate:
+                    validate(content)
+                return content
+            except (OSError, ScrapeError) as e:
+                logger.warning("Ignoring invalid cache %s: %s", cache_file, e)
+                cache_file.unlink(missing_ok=True)
 
         for attempt in range(MAX_RETRIES):
             try:
+                if delay:
+                    # Pace request starts globally, but never wait for cached pages.
+                    with self._pace_lock:
+                        wait = self._next_request - time.monotonic()
+                        if wait > 0:
+                            time.sleep(wait)
+                        self._next_request = time.monotonic() + delay
                 response = self.session.get(url, params=params, timeout=REQUEST_TIMEOUT)
                 response.raise_for_status()
+                if validate:
+                    validate(response.content)
                 break
-            except requests.RequestException as e:
+            except (requests.RequestException, ScrapeError) as e:
                 if attempt == MAX_RETRIES - 1:
                     raise ScrapeError(f"GET {url} {params or ''} failed after {MAX_RETRIES} attempts: {e}") from e
                 wait = 2 ** (attempt + 1)
@@ -221,6 +254,14 @@ class Fetcher:
             tmp.write_bytes(response.content)
             tmp.replace(cache_file)
         return response.content
+
+
+def cache_directory(root: Path, period: str) -> Path:
+    # No cross-source/category reuse; numeric periods also keep --fresh inside root.
+    if not period.isdigit():
+        raise ScrapeError("Rating period must be numeric")
+    namespace = hashlib.sha256(json.dumps([BASE_URL, CATEGORY_CODE]).encode()).hexdigest()[:16]
+    return root.expanduser() / namespace / period
 
 
 def listing_params(period: str, page: int) -> Dict:
@@ -242,28 +283,34 @@ def detect_period(fetcher: Fetcher) -> str:
 
 
 def scrape_listing(fetcher: Fetcher, period: str, max_pages: Optional[int]) -> List[Dict]:
-    players: List[Dict] = []
-    total_pages = None
-    page = 1
-    while True:
-        html = fetcher.get(BASE_URL, params=listing_params(period, page), cache_key=f"list_{page}")
-        page_players = parse_listing_page(html)
-        if page_players is None:
-            raise ScrapeError(f"Listing page {page} has no results table")
-        if total_pages is None:
-            total_pages = parse_total_pages(html)
-            if total_pages is None:
-                raise ScrapeError("Could not read the page count from the listing pager")
-            logger.info("Period %s has %s listing pages", period, total_pages)
-        if not page_players:
-            raise ScrapeError(f"Listing page {page} of {total_pages} has no players")
-        players.extend(page_players)
-        logger.info("Page %s/%s: %s players (total %s)", page, total_pages, len(page_players), len(players))
-        last = total_pages if max_pages is None else min(total_pages, max_pages)
-        if page >= last:
-            return players
-        page += 1
-        time.sleep(PAGE_DELAY)
+    def fetch_page(page):
+        parsed = {}
+        def validate(html):
+            rows = parse_listing_page(html)
+            if rows is None:
+                raise ScrapeError(f"Listing page {page} has no results table")
+            if not rows:
+                raise ScrapeError(f"Listing page {page} has no players")
+            count = parse_total_pages(html)
+            if count is None or count < page:
+                raise ScrapeError(f"Could not read a valid page count from listing page {page}")
+            parsed.update(players=rows, count=count)
+        fetcher.get(BASE_URL, params=listing_params(period, page), cache_key=f"list_{page}",
+                    validate=validate, delay=PAGE_DELAY)
+        return parsed["players"], parsed["count"]
+
+    players, total_pages = fetch_page(1)
+    logger.info("Period %s has %s listing pages", period, total_pages)
+    logger.info("Page 1/%s: %s players (total %s)", total_pages, len(players), len(players))
+    last = total_pages if max_pages is None else min(total_pages, max_pages)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=LISTING_WORKERS) as pool:
+        # map yields in page order, preserving deterministic deduplication later.
+        for page, (rows, count) in enumerate(pool.map(fetch_page, range(2, last + 1)), 2):
+            if count != total_pages:
+                raise ScrapeError(f"Page count changed during listing: {total_pages} to {count}")
+            players.extend(rows)
+            logger.info("Page %s/%s: %s players (total %s)", page, total_pages, len(rows), len(players))
+    return players
 
 
 def player_page_request(link: str, page: int = 1) -> Tuple[str, Dict[str, str]]:
@@ -280,24 +327,35 @@ def player_page_request(link: str, page: int = 1) -> Tuple[str, Dict[str, str]]:
 
 
 def scrape_player(fetcher: Fetcher, player: Dict, with_history: bool) -> Tuple[Optional[int], List[List]]:
-    url, params = player_page_request(player["link"])
-    soup = BeautifulSoup(fetcher.get(url, params=params, cache_key=f"player_{player['id']}"), "html.parser")
+    def fetch_page(page):
+        parsed = {}
+        def validate(html):
+            soup = BeautifulSoup(html, "html.parser")
+            if soup.find("table", class_="resultTable") is None or soup.find("h1") is None:
+                raise ScrapeError(f"Player {player['id']} page {page} has no player/history table")
+            parsed["soup"] = soup
+        url, params = player_page_request(player["link"], page)
+        key = f"player_{player['id']}" + (f"_p{page}" if page > 1 else "")
+        fetcher.get(url, params=params, cache_key=key, validate=validate)
+        return parsed["soup"]
+
+    soup = fetch_page(1)
     birth_year = extract_birth_year(soup)
     if not with_history:
         return birth_year, []
 
-    # History is paginated. The pager only shows the current page number, so keep
-    # going while pages come back full.
-    pages = [soup]
-    while len(history_rows(pages[-1])) >= HISTORY_PAGE_SIZE and len(pages) < MAX_HISTORY_PAGES:
-        page = len(pages) + 1
-        page_url, page_params = player_page_request(player["link"], page)
-        html = fetcher.get(page_url, params=page_params, cache_key=f"player_{player['id']}_p{page}")
-        next_soup = BeautifulSoup(html, "html.parser")
-        if not set(history_rows(next_soup)) - set().union(*(history_rows(p) for p in pages)):
+    rows = history_rows(soup)
+    pages = [rows]
+    seen = set(rows)
+    page = 1
+    while len(rows) >= HISTORY_PAGE_SIZE and page < MAX_HISTORY_PAGES:
+        page += 1
+        rows = history_rows(fetch_page(page))
+        if not rows.keys() - seen:
             break  # no new periods; the site ignored the page parameter
-        pages.append(next_soup)
-    return birth_year, extract_history(*pages)
+        seen.update(rows)
+        pages.append(rows)
+    return birth_year, history_entries(*pages)
 
 
 def dedupe_players(players: List[Dict]) -> List[Dict]:
@@ -476,6 +534,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                         help="rating period ID (default: newest period listed on the TTCAN site)")
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT_DIR, help="output directory")
     parser.add_argument("--max-pages", type=int, help="stop after this many listing pages (for testing)")
+    parser.add_argument("--cache-root", type=Path,
+                        default=Path(os.getenv("TTCAN_CACHE_ROOT", str(CACHE_ROOT))),
+                        help="page cache root (default: TTCAN_CACHE_ROOT or backend/.cache)")
     parser.add_argument("--fresh", action="store_true", help="ignore cached pages for this period")
     parser.add_argument("--force", action="store_true", help="publish even if the player count dropped sharply")
     parser.add_argument("--skip-if-current", action="store_true",
@@ -497,7 +558,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.skip_if_current and published_period(args.out) == period:
             logger.info("Period %s is already published; nothing to do", period)
             return 0
-        cache_dir = CACHE_ROOT / period
+        cache_dir = cache_directory(args.cache_root, period)
+        logger.info("Page cache: %s", cache_dir)
         if args.fresh:
             shutil.rmtree(cache_dir, ignore_errors=True)
         fetcher = Fetcher(cache_dir)

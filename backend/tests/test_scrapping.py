@@ -75,10 +75,12 @@ class FakeFetcher:
     def __init__(self, pages):
         self.pages = pages
 
-    def get(self, url, params=None, cache_key=None):
+    def get(self, url, params=None, cache_key=None, validate=None, delay=0):
         page = self.pages[params["Formv_ctta_ratings_Page"]]
         if isinstance(page, Exception):
             raise page
+        if validate:
+            validate(page)
         return page
 
 
@@ -156,9 +158,11 @@ class PlayerFetcher:
     def __init__(self, pages):
         self.pages, self.calls = pages, []
 
-    def get(self, url, params=None, cache_key=None):
+    def get(self, url, params=None, cache_key=None, validate=None, delay=0):
         page = int((params or {}).get("Formv_ctta_ratings_Page", 1))
         self.calls.append(page)
+        if validate:
+            validate(self.pages[page])
         return self.pages[page]
 
 
@@ -216,3 +220,139 @@ def test_rebuild_derived_adds_growth_and_similar(tmp_path):
     s.rebuild_derived(out)
     assert list((out / "similar").glob("*.json"))
     assert json.loads((out / "players.json").read_text())["players"] == doc["players"]
+
+
+def test_cache_directory_separates_source_category_and_period(tmp_path, monkeypatch):
+    first = s.cache_directory(tmp_path, '428')
+    assert first.is_relative_to(tmp_path)
+    assert first != s.cache_directory(tmp_path, '427')
+    monkeypatch.setattr(s, 'CATEGORY_CODE', '2')
+    second = s.cache_directory(tmp_path, '428')
+    assert first != second
+    monkeypatch.setattr(s, 'BASE_URL', 'http://example.org/ratings')
+    assert second != s.cache_directory(tmp_path, '428')
+
+
+def test_invalid_cache_is_refetched_and_valid_cache_has_no_delay(tmp_path, monkeypatch):
+    import requests
+    cached = tmp_path / 'list_1.html'
+    cached.write_bytes(b'<html>Service unavailable</html>')
+    fetcher = s.Fetcher(tmp_path)
+    response = requests.Response()
+    response.status_code = 200
+    response._content = fixture('listing_page1.html')
+    monkeypatch.setattr(requests.Session, 'get', lambda *a, **kw: response)
+
+    def validate(html):
+        if s.parse_listing_page(html) is None:
+            raise s.ScrapeError('no results table')
+
+    assert fetcher.get('http://test', cache_key='list_1', validate=validate) == response.content
+    assert cached.read_bytes() == response.content
+    monkeypatch.setattr(requests.Session, 'get', lambda *a, **kw: pytest.fail('cache hit requested network'))
+    monkeypatch.setattr(s.time, 'sleep', lambda *a: pytest.fail('cache hit slept'))
+    assert fetcher.get('http://test', cache_key='list_1', validate=validate, delay=0.2) == response.content
+
+
+def test_malformed_network_pages_are_retried_not_cached(tmp_path, monkeypatch):
+    import requests
+    fetcher = s.Fetcher(tmp_path)
+    response = requests.Response()
+    response.status_code = 200
+    response._content = b'<html>Service unavailable</html>'
+    calls = []
+    def get(*a, **kw):
+        calls.append(1)
+        return response
+    monkeypatch.setattr(requests.Session, 'get', get)
+    monkeypatch.setattr(s.time, 'sleep', lambda *a: None)
+    def validate(html):
+        raise s.ScrapeError('unexpected page')
+    with pytest.raises(s.ScrapeError):
+        fetcher.get('http://test', cache_key='player_1', validate=validate)
+    assert len(calls) == s.MAX_RETRIES
+    assert not (tmp_path / 'player_1.html').exists()
+
+
+def test_listing_fetches_concurrently_but_returns_page_order(monkeypatch):
+    import threading
+    monkeypatch.setattr(s, 'PAGE_DELAY', 0)
+    later_started = threading.Event()
+    class Fetcher:
+        def get(self, url, params=None, cache_key=None, **kwargs):
+            page = params['Formv_ctta_ratings_Page']
+            if page == 2:
+                assert later_started.wait(2), 'listing requests were serialized'
+            if page == 3:
+                later_started.set()
+            html = fixture('listing_page1.html')
+            # Unique IDs identify output order without replacing the parser.
+            html = html.replace(b'Player_ID=', f'Player_ID={page}000'.encode())
+            if kwargs.get('validate'):
+                kwargs['validate'](html)
+            return html
+    players = s.scrape_listing(Fetcher(), '427', max_pages=3)
+    assert len(players) == 300
+    assert [players[i]['id'][0] for i in (0, 100, 200)] == ['1', '2', '3']
+
+
+def test_invalid_player_html_is_rejected():
+    fetcher = PlayerFetcher({1: b'<html>Service unavailable</html>'})
+    with pytest.raises(s.ScrapeError):
+        s.scrape_player(fetcher, {'id': '1', 'link': 'x?Player_ID=1'}, True)
+
+
+def test_history_duplicate_with_invalid_date_does_not_erase_valid_entry():
+    def soup(date):
+        return BeautifulSoup(f'<table><tr><td>427</td><td>{date}</td><td>ON</td><td>M</td><td>1000</td></tr></table>', 'html.parser')
+    assert s.extract_history(soup('October 1, 2026'), soup('invalid')) == [[427, '2026-10-01', 1000]]
+
+
+def test_cache_root_cli_and_fresh_only_clear_selected_namespace(tmp_path, monkeypatch):
+    root = tmp_path / 'cache'
+    selected = s.cache_directory(root, '428')
+    other = s.cache_directory(root, '427')
+    for folder in (selected, other):
+        folder.mkdir(parents=True)
+        (folder / 'old.html').write_text('old')
+    monkeypatch.setattr(s, 'BACKEND_DIR', tmp_path)
+    monkeypatch.setenv('TTCAN_CACHE_ROOT', str(tmp_path / 'unused'))
+    def scrape(fetcher, period, with_history, max_pages):
+        assert fetcher.cache_dir == selected
+        assert not (selected / 'old.html').exists()
+        assert (other / 'old.html').exists()
+        return _players(1), {}
+    monkeypatch.setattr(s, 'scrape', scrape)
+    assert s.main(['--period', '428', '--cache-root', str(root), '--fresh', '--out', str(tmp_path / 'out')]) == 0
+    assert (tmp_path / 'out' / 'players.json').exists()
+
+
+def test_network_pacing_is_shared_across_workers_and_retries(tmp_path, monkeypatch):
+    import concurrent.futures
+    import requests
+    clock = [0.0]
+    starts = []
+    sessions = []
+    response = requests.Response()
+    response.status_code = 200
+    response._content = b'valid'
+    monkeypatch.setattr(s.time, 'monotonic', lambda: clock[0])
+    def sleep(seconds):
+        clock[0] += seconds
+    monkeypatch.setattr(s.time, 'sleep', sleep)
+    def get(session, *a, **kw):
+        starts.append(clock[0])
+        sessions.append(session)
+        if len(starts) == 1:
+            raise requests.Timeout('temporary timeout')
+        return response
+    monkeypatch.setattr(requests.Session, 'get', get)
+    fetcher = s.Fetcher(tmp_path)
+    # Distinct worker lifetimes: pacing must survive a worker's session change.
+    for key in ('one', 'two'):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            assert pool.submit(fetcher.get, 'http://test', cache_key=key, delay=3).result() == b'valid'
+    # The retry's two-second backoff still needs one second of pacing.
+    assert starts == [0.0, 3.0, 6.0]
+    assert sessions[0] is sessions[1]
+    assert sessions[1] is not sessions[2]

@@ -53,8 +53,10 @@ Options:
 
 Safety and resuming:
 
-- Every fetched page is cached in `backend/.cache/<period>/`. If a run is interrupted, run the same command again and it continues from the cache.
-- A failed or malformed page stops the run with an error. Partial data is never published.
+- Pages are cached in `backend/.cache/<source-category>/<period>/` locally. The source/category component is a hash that isolates different TTCAN configurations. Set `--cache-root PATH` (or `TTCAN_CACHE_ROOT`) to choose another root. GitHub Actions uses `~/Library/Caches/ttcan-rating/`, outside its checkout, so retries retain completed pages despite checkout cleanup. Existing caches in the old `<period>/` layout are left untouched; the first run using the new layout downloads pages again.
+- Cached and downloaded pages must pass structural validation; malformed pages are refetched with the existing retries. `--fresh` clears only the selected source/category/period. Reuse assumes that period has not been revised upstream; use `--fresh` to pick up corrections.
+- Listing requests use four workers with request starts spaced at least 0.2 seconds apart; cached pages have no delay. Player requests retain eight workers. All listing pages are required and assembled in page order.
+- A failed listing page stops the run. The existing player-page policy aborts if more than 5% fail; at or below that threshold, unavailable birth years/history can be omitted.
 - New data is written to a staging folder and swapped in only after it passes checks. It is refused if the player count drops by more than 10% from the last run.
 
 ## Frontend
