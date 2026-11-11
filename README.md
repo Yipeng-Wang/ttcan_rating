@@ -83,3 +83,24 @@ Set `TTCAN_BASE_URL` in a `.env` file if the address changes again (see `.env.ex
 ## License
 
 This project is for educational and analysis purposes only.
+
+## Search engine discovery
+
+Every `npm run build` generates a visible homepage snapshot from the same `build/data/players.json` shipped with the app. It contains the published rating period, update date, top ten players (including tied ranks), and an explanation of the ranking filters. React replaces the snapshot with the interactive app when JavaScript loads. The content is identical for visitors and crawlers; no crawler-specific rendering is used.
+
+The build also writes `sitemap.xml` and sets a descriptive title, description and canonical homepage URL. Filter, player and calculator query strings currently share the homepage canonical and are not submitted as separate pages. Run `npm run test:seo` to test the snapshot generator. Missing or malformed data fails the build instead of publishing an empty snapshot.
+
+### Google Search Console
+
+1. Sign in at [Google Search Console](https://search.google.com/search-console) and add a **URL-prefix** property: `https://yipeng-wang.github.io/ttcan_rating/`. A Domain property would require DNS access to `github.io`, so use URL-prefix verification for this site.
+2. Choose **HTML tag** verification. Copy the exact `google-site-verification` meta tag supplied for your account into the `<head>` of `frontend/public/index.html`. Commit and deploy it, then click **Verify**. Keep the tag in subsequent builds; the postbuild script preserves it.
+3. Submit `https://yipeng-wang.github.io/ttcan_rating/sitemap.xml` in **Sitemaps**.
+4. Inspect the canonical homepage with **URL Inspection**, run the live test, check the rendered content, and request indexing. Monitor indexing status and impressions for queries such as “TTCAN rankings”, “TTCAN ratings” and “Canadian table tennis rankings”.
+
+### Bing and other search engines
+
+Sign in at [Bing Webmaster Tools](https://www.bing.com/webmasters/). Import the verified Search Console property if offered, or add this site and follow its ownership-verification instructions. If using an HTML meta tag, add the exact supplied tag to `frontend/public/index.html` and deploy it. Submit the same sitemap URL and inspect the homepage. Each search engine decides whether and when to index the site.
+
+On GitHub project Pages, `frontend/public/robots.txt` is served under `/ttcan_rating/robots.txt`; crawlers look for robots rules at the host root (`https://yipeng-wang.github.io/robots.txt`). The root currently returns 404, which does not block crawling. Submit the sitemap directly in the webmaster tools; do not rely on a project-level robots file to advertise it.
+
+Account verification and sitemap submission must be completed by an account owner. No verification token is included in the repository yet. Indexing and ranking are not guaranteed; monitor Search Console rather than assuming a successful deployment means Google has indexed it. Links from relevant club and association websites can help people discover this independent tool.
