@@ -28,11 +28,47 @@ function mockFetch(routes) {
   });
 }
 
+let boundsSpy;
+const originalResizeObserver = global.ResizeObserver;
 beforeAll(() => {
   window.scrollTo = jest.fn();
-  global.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} };
 });
-beforeEach(() => window.history.replaceState(null, '', '/'));
+beforeEach(() => {
+  const originalBounds = Element.prototype.getBoundingClientRect;
+  boundsSpy = jest.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+    if (!this.classList.contains('recharts-responsive-container')) {
+      return originalBounds.call(this);
+    }
+    const height = parseFloat(this.parentElement.style.height) || 240;
+    return { x: 0, y: 0, top: 0, left: 0, right: 800, bottom: height, width: 800, height, toJSON() {} };
+  });
+  global.ResizeObserver = class {
+    constructor(callback) { this.callback = callback; }
+    observe(target) { this.callback([{ target, contentRect: target.getBoundingClientRect() }]); }
+    unobserve() {}
+    disconnect() {}
+  };
+});
+afterAll(() => {
+  global.ResizeObserver = originalResizeObserver;
+});
+let warnSpy;
+let errorSpy;
+beforeEach(() => {
+  window.history.replaceState(null, '', '/');
+  // Record unexpected diagnostics without hiding them from the test output.
+  warnSpy = jest.spyOn(console, 'warn');
+  errorSpy = jest.spyOn(console, 'error');
+});
+afterEach(() => {
+  boundsSpy.mockRestore();
+  const warnings = warnSpy.mock.calls;
+  const errors = errorSpy.mock.calls;
+  warnSpy.mockRestore();
+  errorSpy.mockRestore();
+  expect(warnings).toEqual([]);
+  expect(errors).toEqual([]);
+});
 
 describe('data helpers', () => {
   test('formats months and ages', () => {
@@ -85,6 +121,11 @@ describe('data helpers', () => {
     expect(yearTicks(Date.UTC(2023, 5, 1), Date.UTC(2026, 9, 1), 7).map(t => new Date(t).getUTCFullYear())).toEqual([2024, 2025, 2026]);
   });
 
+  test('small integer chart ranges have unique ticks', () => {
+    expect(niceTicks(0, 1, 4)).toEqual({ domain: [0, 1], ticks: [0, 1] });
+    expect(niceTicks(0, 2, 4)).toEqual({ domain: [0, 2], ticks: [0, 1, 2] });
+  });
+
   test('chart helpers produce round ticks and change summaries', () => {
     expect(niceTicks(3173, 3546)).toEqual({ domain: [3100, 3600], ticks: [3100, 3200, 3300, 3400, 3500, 3600] });
     const h = [{ date: '2024-06-01', t: Date.UTC(2024, 5, 1), rating: 1400 }, { date: '2025-09-01', t: Date.UTC(2025, 8, 1), rating: 1450 }, { date: '2026-09-01', t: Date.UTC(2026, 8, 1), rating: 1500 }];
@@ -123,6 +164,7 @@ describe('app', () => {
     expect(await screen.findByText(/Rating period 427/)).toBeInTheDocument();
     const board = screen.getByRole('table', { name: 'Top players' });
     expect(within(board).getByText('WANG Eugene Zhen')).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelector('.recharts-surface')).toHaveAttribute('width', '800'));
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Find a player' }), { target: { value: 'li wei' } });
     const options = within(await screen.findByRole('listbox')).getAllByRole('option');
@@ -133,6 +175,7 @@ describe('app', () => {
     mockFetch({
       '/data/players.json': { body: playersDoc },
       '/data/history/56.json': { body: { 7864: [[425, '2026-08-04', 4063], [426, '2026-09-07', 4071]] } },
+      '/data/history/36.json': { body: { 100: [[420, '2026-02-28', 1490]] } },
     });
     render(<App />);
     await screen.findByText(/Rating period 427/);
@@ -149,6 +192,8 @@ describe('app', () => {
     expect(window.location.search).toBe('?player=7864');
     fireEvent.click(within(card).getByRole('button', { name: 'LI Wei' }));
     expect(window.location.search).toBe('?player=100');
+    const nextCard = await screen.findByRole('region', { name: 'LI Wei' });
+    expect(await within(nextCard).findByText('First rated Feb 2026 · 1 rating period on record')).toBeInTheDocument();
     // selecting a player no longer changes the filters
     expect(screen.getByLabelText('Province')).toHaveValue('');
   });

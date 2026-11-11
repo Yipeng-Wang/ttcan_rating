@@ -316,7 +316,8 @@ export function niceTicks(min, max, target = 5) {
   if (min === max) { min -= 50; max += 50; }
   const raw = (max - min) / target;
   const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map(m => m * magnitude).find(s => s >= raw);
+  // Ratings and player counts are integers; fractional steps round to duplicate ticks.
+  const step = Math.max(1, [1, 2, 2.5, 5, 10].map(m => m * magnitude).find(s => s >= raw));
   const lo = Math.floor(min / step) * step;
   const hi = Math.ceil(max / step) * step;
   const ticks = [];
