@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import './App.css';
-import siteContent from './siteContent';
 import {
   ACTIVITY_OPTIONS, AGE_GROUPS, GENDER_GROUPS, PROVINCES, formatMonth, formatNumber,
   loadPlayerHistory, loadPlayers, matchesFilters, playerStanding, sortByRating,
@@ -107,8 +106,8 @@ function App() {
       <header className="masthead">
         <div className="masthead__ball" aria-hidden="true">🏓</div>
         <div>
-          <h1>{siteContent.heading}</h1>
-          <p className="masthead__tagline">{siteContent.introduction}</p>
+          <h1>TTCAN Ratings</h1>
+          <p className="masthead__tagline">Find your rating, see how you’re improving, and cheer on your friends!</p>
           {dataset.period && (
             <p className="muted small">Rating period {dataset.period} · Updated {formatMonth(dataset.generatedAt?.slice(0, 10))}</p>
           )}
@@ -159,7 +158,6 @@ function App() {
             />
           )}
 
-          <p className="muted small">{siteContent.explanation}</p>
           <Filters filters={filters} provinces={provinces} onChange={update} />
           <Distribution players={filtered} selected={player} description={description} compact={isMobile} />
           <ClimbersBoard players={filtered} scope={describeScope(filters)} selectedId={player?.id} onSelect={selectPlayer} />

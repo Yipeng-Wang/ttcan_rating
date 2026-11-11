@@ -86,21 +86,24 @@ This project is for educational and analysis purposes only.
 
 ## Search engine discovery
 
-Every `npm run build` generates a visible homepage snapshot from the same `build/data/players.json` shipped with the app. It contains the published rating period, update date, top ten players (including tied ranks), and an explanation of the ranking filters. React replaces the snapshot with the interactive app when JavaScript loads. The content is identical for visitors and crawlers; no crawler-specific rendering is used.
+The homepage has a descriptive title, description and canonical URL. A static sitemap at `frontend/public/sitemap.xml` is copied to the production build. It lists only the homepage; player, filter and calculator query strings currently share the homepage canonical. Separate indexable pages can be added later if needed.
 
-The build also writes `sitemap.xml` and sets a descriptive title, description and canonical homepage URL. Filter, player and calculator query strings currently share the homepage canonical and are not submitted as separate pages. Run `npm run test:seo` to test the snapshot generator. Missing or malformed data fails the build instead of publishing an empty snapshot.
+The app remains client-rendered. Google can render JavaScript; use URL Inspection to check what it actually sees before adding prerendering. Verification is not required to appear in search, but it provides indexing diagnostics and submission tools. Neither verification nor a sitemap guarantees indexing or rankings.
 
-### Google Search Console
+### Google Search Console: HTML-file verification
 
-1. Sign in at [Google Search Console](https://search.google.com/search-console) and add a **URL-prefix** property: `https://yipeng-wang.github.io/ttcan_rating/`. A Domain property would require DNS access to `github.io`, so use URL-prefix verification for this site.
-2. Choose **HTML tag** verification. Copy the exact `google-site-verification` meta tag supplied for your account into the `<head>` of `frontend/public/index.html`. Commit and deploy it, then click **Verify**. Keep the tag in subsequent builds; the postbuild script preserves it.
-3. Submit `https://yipeng-wang.github.io/ttcan_rating/sitemap.xml` in **Sitemaps**.
-4. Inspect the canonical homepage with **URL Inspection**, run the live test, check the rendered content, and request indexing. Monitor indexing status and impressions for queries such as “TTCAN rankings”, “TTCAN ratings” and “Canadian table tennis rankings”.
+1. Sign in at [Google Search Console](https://search.google.com/search-console) and add the **URL-prefix** property `https://yipeng-wang.github.io/ttcan_rating/`. DNS verification is unavailable for the GitHub-owned hostname.
+2. Choose **HTML file** verification and download the file Google supplies. Put it unchanged, with its original filename, in `frontend/public/`.
+3. Commit and deploy the file. The build copies public files to the site. Confirm the file is publicly accessible at the exact URL Google specifies, then click **Verify**. Keep it in future deployments, since Google rechecks ownership. Do not upload it only to the generated build or gh-pages branch: the next deployment replaces those files.
+4. Submit `https://yipeng-wang.github.io/ttcan_rating/sitemap.xml` under **Sitemaps**.
+5. Use **URL Inspection** on the homepage, run the live test, inspect the rendered page and request indexing. Monitor indexing status and impressions for “TTCAN rankings”, “TTCAN ratings” and “Canadian table tennis rankings”.
+
+Alternatively, add Google's exact HTML verification meta tag to the `<head>` of `frontend/public/index.html` and deploy it. Analytics and Tag Manager verification are available for sites already configured with those services; this project does not need either just for verification. See [Google's verification methods](https://support.google.com/webmasters/answer/9008080).
 
 ### Bing and other search engines
 
-Sign in at [Bing Webmaster Tools](https://www.bing.com/webmasters/). Import the verified Search Console property if offered, or add this site and follow its ownership-verification instructions. If using an HTML meta tag, add the exact supplied tag to `frontend/public/index.html` and deploy it. Submit the same sitemap URL and inspect the homepage. Each search engine decides whether and when to index the site.
+Sign in at [Bing Webmaster Tools](https://www.bing.com/webmasters/) and import the verified Google Search Console property. Bing can use that ownership verification without a second verification file. Alternatively, add the site manually and follow Bing's file or meta-tag verification instructions. Submit the same sitemap URL. See [Bing's verification instructions](https://www2.bing.com/webmasters/help/add-and-verify-site-12184f8b).
 
-On GitHub project Pages, `frontend/public/robots.txt` is served under `/ttcan_rating/robots.txt`; crawlers look for robots rules at the host root (`https://yipeng-wang.github.io/robots.txt`). The root currently returns 404, which does not block crawling. Submit the sitemap directly in the webmaster tools; do not rely on a project-level robots file to advertise it.
+GitHub project Pages serves this project's robots file under `/ttcan_rating/robots.txt`, but crawlers read robots rules at the host root, `https://yipeng-wang.github.io/robots.txt`. Submit the sitemap directly through the webmaster tools rather than relying on the project-level robots file.
 
-Account verification and sitemap submission must be completed by an account owner. No verification token is included in the repository yet. Indexing and ranking are not guaranteed; monitor Search Console rather than assuming a successful deployment means Google has indexed it. Links from relevant club and association websites can help people discover this independent tool.
+The account owner must obtain the verification file or tag and complete verification. No verification token is included yet, and no indexing request has been submitted.

@@ -34,6 +34,5 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm test -- --watchAll=false
-          npm run test:seo
           npm run build
           ../.github/scripts/publish-pages.sh build
