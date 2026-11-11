@@ -37,7 +37,9 @@ Then deploy the site (see below) and commit the changed files in `frontend/publi
 
 ### Automatic updates
 
-`.github/workflows/update-data.yml` runs daily at 13:00 UTC. It checks the newest rating period on the TTCAN site and stops if that period is already published. When a new period appears, it scrapes players and history, commits the data to `main` and redeploys GitHub Pages. It runs on a self-hosted runner on a home computer, because TTCAN blocks connections from GitHub's servers. The runner is installed in `~/actions-runner-ttcan` as a login service. If the computer is off at 13:00 UTC, the job waits in the queue for up to 24 hours. To check on the runner, run `./svc.sh status` in that folder. To start it by hand, go to the Actions tab, choose **Update ratings data**, then **Run workflow**. Tick "full refresh" to scrape even when the period hasn't changed.
+`.github/workflows/update-data.yml` runs twice a day, at 13:17 and 21:17 UTC. It checks the newest rating period on the TTCAN site and stops if that period is already published. When a new period appears, it scrapes players and history, commits the data to `main` and redeploys GitHub Pages. It runs on a self-hosted runner on a home computer, because TTCAN blocks connections from GitHub's servers. The runner is installed in `~/actions-runner-ttcan` as a login service. If the computer is off at 13:00 UTC, the job waits in the queue for up to 24 hours. To check on the runner, run `./svc.sh status` in that folder.
+
+Because that computer isn't always on, and GitHub sometimes skips scheduled runs, a LaunchAgent on it also runs `scripts/scraper-catch-up.sh` at login and every hour. If the workflow hasn't succeeded yet that day (local time), it starts a run; it gives up after 3 runs in a day. Install or update it with `scripts/install-scraper-catch-up.sh` (`--remove` to uninstall); its log is `~/Library/Logs/ttcan-scraper-catch-up.log`. The installer also sets the catch-up job and the runner service (and every job it starts) to macOS background priority, so they yield to whatever you're doing, and the catch-up check doesn't start a run on battery below 30%. To start it by hand, go to the Actions tab, choose **Update ratings data**, then **Run workflow**. Tick "full refresh" to scrape even when the period hasn't changed.
 
 The self-hosted Mac requires Homebrew Python 3.13 (`brew install python@3.13`). The workflow selects `/opt/homebrew/bin/python3.13` on Apple Silicon or `/usr/local/bin/python3.13` on Intel, verifies OpenSSL, and recreates its virtual environment. This avoids the LibreSSL compatibility warning from Apple's system Python; no system Python replacement or runner service restart is needed.
 
@@ -55,8 +57,10 @@ Options:
 
 Safety and resuming:
 
-- Every fetched page is cached in `backend/.cache/<period>/`. If a run is interrupted, run the same command again and it continues from the cache.
-- A failed or malformed page stops the run with an error. Partial data is never published.
+- Pages are cached in `backend/.cache/<source-category>/<period>/` locally. The source/category component is a hash that isolates different TTCAN configurations. Set `--cache-root PATH` (or `TTCAN_CACHE_ROOT`) to choose another root. GitHub Actions uses `~/Library/Caches/ttcan-rating/`, outside its checkout, so retries retain completed pages despite checkout cleanup. Existing caches in the old `<period>/` layout are left untouched; the first run using the new layout downloads pages again.
+- Cached and downloaded pages must pass structural validation; malformed pages are refetched with the existing retries. `--fresh` clears only the selected source/category/period. Reuse assumes that period has not been revised upstream; use `--fresh` to pick up corrections.
+- Listing requests use four workers with request starts spaced at least 0.2 seconds apart; cached pages have no delay. Player requests retain eight workers. All listing pages are required and assembled in page order.
+- A failed listing page stops the run. The existing player-page policy aborts if more than 5% fail; at or below that threshold, unavailable birth years/history can be omitted.
 - New data is written to a staging folder and swapped in only after it passes checks. It is refused if the player count drops by more than 10% from the last run.
 
 ## Frontend
